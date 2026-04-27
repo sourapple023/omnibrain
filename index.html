@@ -1,43 +1,58 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Omni Brain X</title>
+<title>Omni Brain X Level 2</title>
 
 <style>
-* { box-sizing: border-box; }
+* { box-sizing:border-box; }
 
 html, body {
   margin:0;
   height:100%;
   overflow:hidden;
-  background:#0a0f1f;
+  background:#070b16;
   color:#eaf0ff;
-  font-family:system-ui, -apple-system, sans-serif;
+  font-family:system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-body { display:flex; flex-direction:column; }
+body {
+  display:flex;
+  flex-direction:column;
+}
 
 header {
   padding:calc(12px + env(safe-area-inset-top)) 14px 12px;
-  background:#121a33;
+  background:#10182d;
   border-bottom:1px solid #26304d;
-  font-weight:700;
-  position:sticky;
-  top:0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+
+.title {
+  font-weight:800;
+  letter-spacing:.3px;
+}
+
+.stats {
+  font-size:12px;
+  color:#aeb8ff;
 }
 
 #chat {
   flex:1;
   overflow-y:auto;
   padding:14px;
-  padding-bottom:90px;
+  padding-bottom:110px;
   -webkit-overflow-scrolling:touch;
 }
 
 .msg {
   max-width:92%;
+  width:fit-content;
   margin:10px 0;
   padding:12px 14px;
   border-radius:18px;
@@ -50,11 +65,23 @@ header {
 .user {
   background:#5c6cff;
   margin-left:auto;
+  border-bottom-right-radius:6px;
 }
 
 .bot {
   background:#141c33;
   border:1px solid #2b3554;
+  margin-right:auto;
+  border-bottom-left-radius:6px;
+}
+
+.system {
+  background:#0f1425;
+  border:1px dashed #3a4568;
+  color:#b8c2ff;
+  margin-left:auto;
+  margin-right:auto;
+  font-size:14px;
 }
 
 footer {
@@ -62,14 +89,13 @@ footer {
   gap:8px;
   padding:10px;
   padding-bottom:calc(10px + env(safe-area-inset-bottom));
-  background:#121a33;
+  background:#10182d;
   border-top:1px solid #26304d;
-  position:sticky;
-  bottom:0;
 }
 
 input {
   flex:1;
+  min-width:0;
   padding:14px;
   border-radius:14px;
   border:1px solid #2b3554;
@@ -80,46 +106,139 @@ input {
 }
 
 button {
-  padding:14px 16px;
+  padding:14px 15px;
   border:none;
   border-radius:14px;
   background:#5c6cff;
   color:white;
-  font-weight:700;
+  font-weight:800;
+  cursor:pointer;
+}
+
+button.secondary {
+  background:#232d4b;
+}
+
+button:active {
+  transform:scale(.97);
+}
+
+.panel {
+  display:flex;
+  gap:8px;
+  padding:8px 10px;
+  background:#0d1426;
+  border-top:1px solid #202943;
+  overflow-x:auto;
+}
+
+.panel button {
+  white-space:nowrap;
+  padding:10px 12px;
+  font-size:13px;
+}
+
+@media(max-width:480px){
+  .stats { display:none; }
+  .msg { max-width:94%; font-size:15.5px; }
+  button { padding:14px 12px; }
 }
 </style>
 </head>
 
 <body>
 
-<header>OMNI BRAIN X 🧠</header>
+<header>
+  <div class="title">OMNI BRAIN X · LEVEL 2 🧠</div>
+  <div class="stats" id="stats">Memory: 0 | Concepts: 0</div>
+</header>
 
 <div id="chat"></div>
 
+<div class="panel">
+  <button class="secondary" onclick="trainBase()">Train Base</button>
+  <button class="secondary" onclick="toggleAuto()">Auto Learn</button>
+  <button class="secondary" onclick="showMemory()">Memory</button>
+  <button class="secondary" onclick="resetBrain()">Reset</button>
+</div>
+
 <footer>
-  <input id="input" placeholder="Talk to your evolving brain..." />
+  <input id="input" placeholder="Ask, teach, or test the brain..." />
   <button onclick="send()">Send</button>
 </footer>
 
 <script>
+// =====================================================
+// OMNI BRAIN X LEVEL 2
+// Offline evolving language brain.
+// One file. No APIs. LocalStorage memory.
+// =====================================================
+
 
 // =======================
-// 🧠 MEMORY
+// 🧠 MEMORY SYSTEM
 // =======================
 
 class Memory {
   constructor(){
-    this.data = JSON.parse(localStorage.getItem("brain_memory") || "{}");
-    if(!this.data.words) this.data.words = {};
+    this.data = JSON.parse(localStorage.getItem("omni_brain_l2") || "{}");
+
+    this.data.words ||= {};
+    this.data.facts ||= [];
+    this.data.concepts ||= {};
+    this.data.history ||= [];
+    this.data.score ||= 1;
   }
 
   save(){
-    localStorage.setItem("brain_memory", JSON.stringify(this.data));
+    localStorage.setItem("omni_brain_l2", JSON.stringify(this.data));
+  }
+
+  clear(){
+    localStorage.removeItem("omni_brain_l2");
+    location.reload();
   }
 }
 
+
 // =======================
-// 🧠 LANGUAGE ENGINE
+// 🧼 TEXT TOOLS
+// =======================
+
+class TextTools {
+  static clean(text){
+    return text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s?.!]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  static words(text){
+    return this.clean(text)
+      .replace(/[?.!]/g, "")
+      .split(/\s+/)
+      .filter(w => w.length > 1);
+  }
+
+  static sentence(text){
+    text = text.trim();
+    if(!text) return "";
+    return text.charAt(0).toUpperCase() + text.slice(1).replace(/\s+/g," ") + ".";
+  }
+
+  static pick(arr){
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  static unique(arr){
+    return [...new Set(arr)];
+  }
+}
+
+
+// =======================
+// 🧬 LANGUAGE ENGINE
 // =======================
 
 class LanguageEngine {
@@ -127,79 +246,192 @@ class LanguageEngine {
     this.memory = memory;
   }
 
-  tokenize(text){
-    return text.toLowerCase()
-      .replace(/[^a-z\s]/g,"") // cleaner
-      .split(/\s+/)
-      .filter(w => w.length > 1);
-  }
-
   learn(sentence){
-    const words = this.tokenize(sentence);
+    const words = TextTools.words(sentence);
+    if(words.length < 2) return;
 
-    for(let i=0;i<words.length;i++){
-      let w = words[i];
-      let next = words[i+1];
-
-      if(!this.memory.data.words[w]){
-        this.memory.data.words[w] = {};
-      }
-
-      if(next){
-        if(!this.memory.data.words[w][next]){
-          this.memory.data.words[w][next] = 0;
-        }
-        this.memory.data.words[w][next]++;
-      }
-    }
-
+    this.learnChain(words);
+    this.learnConcepts(words);
+    this.learnFact(sentence);
     this.memory.save();
   }
 
-  generate(start){
-    let result = [start];
-    let current = start;
+  learnChain(words){
+    for(let i = 0; i < words.length - 1; i++){
+      let current = words[i];
+      let next = words[i + 1];
 
-    for(let i=0;i<12;i++){
+      this.memory.data.words[current] ||= {};
+      this.memory.data.words[current][next] ||= 0;
+      this.memory.data.words[current][next]++;
+    }
+  }
+
+  learnConcepts(words){
+    for(let word of words){
+      this.memory.data.concepts[word] ||= {
+        count:0,
+        related:{}
+      };
+
+      this.memory.data.concepts[word].count++;
+
+      for(let other of words){
+        if(other !== word){
+          this.memory.data.concepts[word].related[other] ||= 0;
+          this.memory.data.concepts[word].related[other]++;
+        }
+      }
+    }
+  }
+
+  learnFact(sentence){
+    const clean = TextTools.clean(sentence);
+    if(clean.length < 8) return;
+
+    const exists = this.memory.data.facts.includes(clean);
+    if(!exists && this.memory.data.facts.length < 500){
+      this.memory.data.facts.push(clean);
+    }
+  }
+
+  generateFrom(start, max = 14){
+    let current = start;
+    let result = [current];
+
+    for(let i = 0; i < max; i++){
       let options = this.memory.data.words[current];
       if(!options) break;
 
-      let next = this.pick(options);
-      if(!next) break;
+      let next = this.weightedPick(options);
+      if(!next || result.slice(-3).includes(next)) break;
 
       result.push(next);
       current = next;
     }
 
-    if(result.length < 4) return null;
+    if(result.length < 5) return null;
 
-    return this.format(result.join(" "));
+    return this.polish(result);
   }
 
-  pick(options){
-    let keys = Object.keys(options);
-
-    // stability bias
-    if(Math.random() < 0.2){
-      return keys[0];
-    }
-
-    let total = 0;
-    for(let k in options) total += options[k];
+  weightedPick(options){
+    const entries = Object.entries(options);
+    const total = entries.reduce((sum, [,weight]) => sum + weight, 0);
 
     let r = Math.random() * total;
-    let sum = 0;
 
-    for(let k in options){
-      sum += options[k];
-      if(r <= sum) return k;
+    for(let [word, weight] of entries){
+      r -= weight;
+      if(r <= 0) return word;
     }
+
+    return entries[0]?.[0];
   }
 
-  format(text){
-    return text.charAt(0).toUpperCase() + text.slice(1) + ".";
+  polish(words){
+    let text = words.join(" ");
+
+    text = text
+      .replace(/\bi\b/g, "I")
+      .replace(/\bim\b/g, "I'm")
+      .replace(/\bdont\b/g, "don't")
+      .replace(/\bcant\b/g, "can't");
+
+    return TextTools.sentence(text);
+  }
+
+  relatedWords(word, limit = 6){
+    const concept = this.memory.data.concepts[word];
+    if(!concept) return [];
+
+    return Object.entries(concept.related)
+      .sort((a,b) => b[1] - a[1])
+      .slice(0, limit)
+      .map(([w]) => w);
   }
 }
+
+
+// =======================
+// ⚙️ REASONING ENGINE
+// =======================
+
+class Reasoner {
+  constructor(memory, language){
+    this.memory = memory;
+    this.language = language;
+  }
+
+  answer(input){
+    const words = TextTools.words(input);
+    const clean = TextTools.clean(input);
+
+    if(clean.includes("what is")){
+      return this.define(words);
+    }
+
+    if(clean.includes("how does") || clean.includes("how do")){
+      return this.explainProcess(words);
+    }
+
+    if(clean.includes("why")){
+      return this.explainCause(words);
+    }
+
+    if(clean.includes("if") && clean.includes("then")){
+      return this.conditional(clean);
+    }
+
+    if(clean.includes("are you learning")){
+      return this.selfReport();
+    }
+
+    return null;
+  }
+
+  define(words){
+    const target = words[words.length - 1];
+    const related = this.language.relatedWords(target);
+
+    if(!related.length) return null;
+
+    return `A ${target} connects to ${related.slice(0,3).join(", ")}. I understand it through the patterns I have learned.`;
+  }
+
+  explainProcess(words){
+    const useful = words.filter(w => !["how","does","do","the","a","an","work"].includes(w));
+    const target = useful[0] || "system";
+    const related = this.language.relatedWords(target);
+
+    if(related.length){
+      return `A ${target} works by connecting ${related.slice(0,3).join(", ")} into a process. Input creates change, and change creates output.`;
+    }
+
+    return "A system works by taking input, processing it, and producing output.";
+  }
+
+  explainCause(words){
+    const key = words.find(w => this.memory.data.concepts[w]);
+    if(!key) return null;
+
+    const related = this.language.relatedWords(key);
+
+    return `${TextTools.sentence(key)} matters because it connects to ${related.slice(0,4).join(", ")}. Those connections can create change over time.`;
+  }
+
+  conditional(clean){
+    return "If the condition changes, then the result can change. The brain treats this as cause, effect, and feedback.";
+  }
+
+  selfReport(){
+    const conceptCount = Object.keys(this.memory.data.concepts).length;
+    const factCount = this.memory.data.facts.length;
+
+    return `Yes. I am learning from language patterns. I currently know ${conceptCount} concepts and ${factCount} stored training lines.`;
+  }
+}
+
 
 // =======================
 // 🧠 BRAIN CORE
@@ -209,86 +441,181 @@ class Brain {
   constructor(){
     this.memory = new Memory();
     this.lang = new LanguageEngine(this.memory);
+    this.reasoner = new Reasoner(this.memory, this.lang);
+
+    this.mood = "curious";
   }
 
   think(input){
+    this.rememberHistory("user", input);
     this.lang.learn(input);
 
-    let tokens = this.lang.tokenize(input);
+    let reply =
+      this.command(input) ||
+      this.reasoner.answer(input) ||
+      this.generate(input) ||
+      this.fallback(input);
 
-    for(let word of tokens){
-      let output = this.lang.generate(word);
-      if(output) return output;
+    this.lang.learn(reply);
+    this.rememberHistory("brain", reply);
+
+    this.memory.data.score++;
+    this.memory.save();
+
+    updateStats();
+    return reply;
+  }
+
+  command(input){
+    const clean = TextTools.clean(input);
+
+    if(clean.startsWith("teach ")){
+      const lesson = input.slice(6);
+      this.lang.learn(lesson);
+      return "I learned that. Add more connected examples and I will understand it better.";
     }
 
-    return this.fallback(input);
+    if(clean.startsWith("remember ")){
+      const memory = input.slice(9);
+      this.lang.learn(memory);
+      this.memory.data.facts.push(TextTools.clean(memory));
+      this.memory.save();
+      return "Stored in memory.";
+    }
+
+    return null;
+  }
+
+  generate(input){
+    const words = TextTools.words(input);
+    const known = words.filter(w => this.memory.data.words[w]);
+
+    if(!known.length) return null;
+
+    const start = TextTools.pick(known);
+    let generated = this.lang.generateFrom(start);
+
+    if(!generated) return null;
+
+    return generated;
   }
 
   fallback(input){
-    const starters = [
-      "I think",
-      "It seems",
-      "Maybe",
-      "I'm learning that"
+    const templates = [
+      "I am still learning this idea, but I can connect it to patterns and growth.",
+      "That gives me a new pattern to study.",
+      "I do not fully understand yet, but I can learn from more examples.",
+      "This seems connected to systems, memory, and change."
     ];
-    return starters[Math.floor(Math.random()*starters.length)] + " " + input;
+
+    return TextTools.pick(templates);
+  }
+
+  rememberHistory(role, text){
+    this.memory.data.history.push({
+      role,
+      text,
+      time: Date.now()
+    });
+
+    if(this.memory.data.history.length > 100){
+      this.memory.data.history.shift();
+    }
   }
 }
+
 
 // =======================
 // 🔁 AUTO TRAINER
 // =======================
 
 class AutoTrainer {
-  constructor(brain, data){
+  constructor(brain, dataset){
     this.brain = brain;
-    this.data = data;
+    this.dataset = dataset;
+    this.running = false;
+    this.interval = null;
   }
 
-  start(speed = 800){
-    this.interval = setInterval(()=>{
-      let s = this.data[Math.floor(Math.random()*this.data.length)];
-      this.brain.lang.learn(s);
+  start(speed = 700){
+    if(this.running) return;
+    this.running = true;
 
-      let tokens = this.brain.lang.tokenize(s);
-      if(tokens.length){
-        let gen = this.brain.lang.generate(tokens[0]);
-        if(gen) this.brain.lang.learn(gen);
-      }
+    this.interval = setInterval(() => {
+      const sentence = TextTools.pick(this.dataset);
+      this.brain.lang.learn(sentence);
+
+      const words = TextTools.words(sentence);
+      const start = TextTools.pick(words);
+      const generated = this.brain.lang.generateFrom(start);
+
+      if(generated) this.brain.lang.learn(generated);
+
+      updateStats();
     }, speed);
+  }
+
+  stop(){
+    clearInterval(this.interval);
+    this.running = false;
   }
 }
 
+
 // =======================
-// 📚 BASE DATASET
+// 📚 LEVEL 2 TRAINING DATA
 // =======================
 
-const DATA = [
-  "systems process input and produce output",
-  "learning improves performance over time",
-  "patterns create understanding",
-  "intelligence adapts to change",
-  "ideas create knowledge",
-  "feedback improves systems",
-  "small changes lead to growth",
-  "understanding comes from experience",
-  "logic builds structure",
-  "structure creates stability"
+const BASE_DATA = [
+  "a system takes input and produces output",
+  "a brain learns from patterns and experience",
+  "memory stores information from the past",
+  "feedback helps a system improve over time",
+  "ideas become stronger when they connect to other ideas",
+  "intelligence is the ability to adapt and learn",
+  "reasoning means connecting cause and effect",
+  "if input changes then output may change",
+  "small improvements can create large results over time",
+  "complex systems are built from simple rules",
+  "language helps humans share knowledge",
+  "questions help the brain discover missing information",
+  "understanding grows when examples repeat",
+  "a concept becomes clearer through relationships",
+  "logic gives structure to thought",
+  "creativity creates new combinations from old ideas",
+  "learning requires memory attention and feedback",
+  "a process has a beginning middle and result",
+  "good answers use context structure and meaning",
+  "the future changes when systems evolve",
+  "code is a set of instructions for a machine",
+  "an algorithm solves problems step by step",
+  "data can reveal patterns",
+  "patterns can reveal meaning",
+  "meaning helps guide decisions",
+  "decisions change outcomes",
+  "outcomes create new experience",
+  "experience improves future decisions",
+  "a smart system learns from mistakes",
+  "clear language creates clear thinking"
 ];
+
 
 // =======================
 // UI
 // =======================
 
 const brain = new Brain();
+const trainer = new AutoTrainer(brain, BASE_DATA);
+
 const chat = document.getElementById("chat");
 const input = document.getElementById("input");
+const stats = document.getElementById("stats");
 
-function add(text,type){
-  const d = document.createElement("div");
-  d.className = "msg " + type;
-  d.textContent = text;
-  chat.appendChild(d);
+function add(text, type){
+  const div = document.createElement("div");
+  div.className = "msg " + type;
+  div.textContent = text;
+  chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
 }
 
@@ -296,26 +623,61 @@ function send(){
   const text = input.value.trim();
   if(!text) return;
 
-  add(text,"user");
+  add(text, "user");
   input.value = "";
 
-  setTimeout(()=>{
-    const reply = brain.think(text);
-    add(reply,"bot");
-  },150);
+  setTimeout(() => {
+    add(brain.think(text), "bot");
+  }, 120);
 }
 
-input.addEventListener("keydown",e=>{
-  if(e.key==="Enter") send();
+function trainBase(){
+  BASE_DATA.forEach(line => brain.lang.learn(line));
+  brain.memory.save();
+  updateStats();
+  add("Base training complete. I learned systems, logic, memory, feedback, language, and reasoning patterns.", "system");
+}
+
+function toggleAuto(){
+  if(trainer.running){
+    trainer.stop();
+    add("Auto learning stopped.", "system");
+  } else {
+    trainer.start(650);
+    add("Auto learning started. The brain is now remixing training patterns.", "system");
+  }
+}
+
+function showMemory(){
+  const concepts = Object.keys(brain.memory.data.concepts).length;
+  const facts = brain.memory.data.facts.length;
+  const score = brain.memory.data.score;
+
+  add(`Memory report:
+Concepts: ${concepts}
+Training lines: ${facts}
+Evolution score: ${score}`, "system");
+}
+
+function resetBrain(){
+  if(confirm("Reset all brain memory?")){
+    brain.memory.clear();
+  }
+}
+
+function updateStats(){
+  const concepts = Object.keys(brain.memory.data.concepts).length;
+  const facts = brain.memory.data.facts.length;
+  stats.textContent = `Memory: ${facts} | Concepts: ${concepts}`;
+}
+
+input.addEventListener("keydown", e => {
+  if(e.key === "Enter") send();
 });
 
-// =======================
-// OPTIONAL AUTO EVOLUTION
-// =======================
+updateStats();
 
-const trainer = new AutoTrainer(brain, DATA);
-// trainer.start(500); // uncomment to enable auto-learning
-
+add("Level 2 online. Teach me, test me, or press Train Base.", "system");
 </script>
 
 </body>
