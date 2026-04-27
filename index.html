@@ -26,6 +26,7 @@ header {
   font-weight:700;
   position:sticky;
   top:0;
+  z-index:4;
 }
 
 #statusDot{
@@ -37,6 +38,89 @@ header {
   background:#58ff9a;
   box-shadow:0 0 12px #58ff9a;
   vertical-align:middle;
+}
+
+#statusBar{
+  position:sticky;
+  top:0;
+  z-index:3;
+  overflow:hidden;
+  padding:9px 14px;
+  background:#0d1426;
+  border-bottom:1px solid #26304d;
+  font-size:13px;
+  color:#b8c4ff;
+}
+
+#miniBrain{
+  position:absolute;
+  inset:-30px 0 auto auto;
+  width:190px;
+  height:90px;
+  opacity:.22;
+  pointer-events:none;
+  filter:blur(.2px);
+}
+
+#miniBrain::before,
+#miniBrain::after{
+  content:"";
+  position:absolute;
+  border-radius:50%;
+  background:
+    radial-gradient(circle at 35% 35%, #8fffe0 0 5px, transparent 6px),
+    radial-gradient(circle at 62% 42%, #ff7ad9 0 4px, transparent 5px),
+    radial-gradient(circle at 50% 68%, #8aa2ff 0 5px, transparent 6px),
+    radial-gradient(circle at 42% 58%, rgba(255,255,255,.8) 0 2px, transparent 3px),
+    linear-gradient(135deg, rgba(92,108,255,.45), rgba(88,255,154,.25));
+  border:1px solid rgba(184,196,255,.35);
+  box-shadow:
+    0 0 18px rgba(88,255,154,.4),
+    inset 0 0 20px rgba(92,108,255,.35);
+}
+
+#miniBrain::before{
+  width:92px;
+  height:58px;
+  right:42px;
+  top:16px;
+  animation:brainPulse 4s ease-in-out infinite;
+}
+
+#miniBrain::after{
+  width:64px;
+  height:42px;
+  right:20px;
+  top:26px;
+  animation:brainPulse 4s ease-in-out infinite reverse;
+}
+
+.brainLine{
+  position:absolute;
+  width:110px;
+  height:1px;
+  right:36px;
+  top:48px;
+  background:linear-gradient(90deg, transparent, rgba(111,255,233,.9), transparent);
+  box-shadow:0 0 10px rgba(111,255,233,.8);
+  transform:rotate(-12deg);
+  animation:brainScan 3s linear infinite;
+}
+
+#statusText{
+  position:relative;
+  z-index:2;
+}
+
+@keyframes brainPulse{
+  0%,100%{ transform:scale(1); opacity:.75; }
+  50%{ transform:scale(1.08); opacity:1; }
+}
+
+@keyframes brainScan{
+  0%{ transform:translateX(25px) rotate(-12deg); opacity:.1; }
+  50%{ opacity:.9; }
+  100%{ transform:translateX(-55px) rotate(-12deg); opacity:.1; }
 }
 
 #chat {
@@ -106,6 +190,11 @@ button {
 <body>
 
 <header>OMNI BRAIN X 🧠 <span id="statusDot" title="mood"></span></header>
+
+<div id="statusBar">
+  <div id="miniBrain"><span class="brainLine"></span></div>
+  <span id="statusText">Mood: curious • Memory: 0 facts • Goals: 0 • Research: 0</span>
+</div>
 
 <div id="chat"></div>
 
@@ -1109,6 +1198,8 @@ class AutoTrainer {
         const generated = this.brain.lang.generate(TextTools.pick(tokens));
         if(generated) this.brain.lang.learn(generated);
       }
+
+      updateStatusDot(this.brain.memory.data.mood);
     }, speed);
   }
 
@@ -1166,6 +1257,7 @@ const trainer = new AutoTrainer(brain, DATA);
 const chat = document.getElementById("chat");
 const input = document.getElementById("input");
 const statusDot = document.getElementById("statusDot");
+const statusText = document.getElementById("statusText");
 
 function updateStatusDot(mood){
   if(!statusDot) return;
@@ -1186,6 +1278,11 @@ function updateStatusDot(mood){
   statusDot.style.background = color;
   statusDot.style.boxShadow = `0 0 12px ${color}`;
   statusDot.title = "Mood: " + mood;
+
+  if(statusText){
+    statusText.textContent =
+      `Mood: ${mood} • Memory: ${brain.memory.data.facts.length} facts • Goals: ${brain.memory.data.goals.length} • Research: ${brain.memory.data.research.length} • Evo: ${brain.memory.data.evolution}`;
+  }
 }
 
 function add(text,type){
