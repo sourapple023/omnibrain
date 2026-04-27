@@ -1,60 +1,135 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Omni Brain X</title>
 
 <style>
 * { box-sizing: border-box; }
 
+:root {
+  --bg:#070b18;
+  --panel:#101832;
+  --panel2:#141e3b;
+  --text:#edf3ff;
+  --muted:#94a3c7;
+  --line:#273354;
+  --accent:#6675ff;
+  --accent2:#9a6cff;
+  --good:#67f5b5;
+  --warn:#ffd166;
+  --danger:#ff6b8b;
+}
+
 html, body {
   margin:0;
   height:100%;
   overflow:hidden;
-  background:#0a0f1f;
-  color:#eaf0ff;
-  font-family:system-ui, -apple-system, sans-serif;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(102,117,255,.25), transparent 32%),
+    radial-gradient(circle at 90% 20%, rgba(154,108,255,.18), transparent 38%),
+    var(--bg);
+  color:var(--text);
+  font-family:system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-body { display:flex; flex-direction:column; }
+body {
+  display:flex;
+  flex-direction:column;
+}
 
 header {
   padding:calc(12px + env(safe-area-inset-top)) 14px 12px;
-  background:#121a33;
-  border-bottom:1px solid #26304d;
+  background:rgba(16,24,50,.86);
+  border-bottom:1px solid var(--line);
+  backdrop-filter:blur(18px);
+}
+
+.top {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+
+.title {
+  font-weight:800;
+  letter-spacing:.3px;
+}
+
+.status {
+  font-size:12px;
+  color:var(--good);
+}
+
+.controls {
+  display:flex;
+  gap:8px;
+  margin-top:10px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+select, .smallBtn {
+  border:1px solid var(--line);
+  background:#0c1328;
+  color:var(--text);
+  border-radius:12px;
+  padding:9px 10px;
   font-weight:700;
-  position:sticky;
-  top:0;
+}
+
+.smallBtn {
+  cursor:pointer;
+}
+
+.rangeWrap {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  color:var(--muted);
+  font-size:12px;
+}
+
+input[type="range"] {
+  width:110px;
 }
 
 #chat {
   flex:1;
   overflow-y:auto;
   padding:14px;
-  padding-bottom:90px;
+  padding-bottom:110px;
   -webkit-overflow-scrolling:touch;
 }
 
 .msg {
-  max-width:92%;
+  max-width:94%;
   margin:10px 0;
   padding:12px 14px;
   border-radius:18px;
   line-height:1.45;
-  font-size:16px;
+  font-size:15.5px;
   white-space:pre-wrap;
   overflow-wrap:anywhere;
+  box-shadow:0 12px 30px rgba(0,0,0,.15);
 }
 
 .user {
-  background:#5c6cff;
+  background:linear-gradient(135deg, var(--accent), var(--accent2));
   margin-left:auto;
 }
 
 .bot {
-  background:#141c33;
-  border:1px solid #2b3554;
+  background:rgba(20,30,59,.92);
+  border:1px solid var(--line);
+}
+
+.meta {
+  font-size:12px;
+  color:var(--muted);
+  margin-top:6px;
 }
 
 footer {
@@ -62,18 +137,19 @@ footer {
   gap:8px;
   padding:10px;
   padding-bottom:calc(10px + env(safe-area-inset-bottom));
-  background:#121a33;
-  border-top:1px solid #26304d;
+  background:rgba(16,24,50,.9);
+  border-top:1px solid var(--line);
+  backdrop-filter:blur(18px);
   position:sticky;
   bottom:0;
 }
 
-input {
+#input {
   flex:1;
   padding:14px;
   border-radius:14px;
-  border:1px solid #2b3554;
-  background:#0d1426;
+  border:1px solid var(--line);
+  background:#0d1428;
   color:white;
   font-size:16px;
   outline:none;
@@ -83,43 +159,122 @@ button {
   padding:14px 16px;
   border:none;
   border-radius:14px;
-  background:#5c6cff;
+  background:linear-gradient(135deg, var(--accent), var(--accent2));
   color:white;
-  font-weight:700;
+  font-weight:800;
+  cursor:pointer;
+}
+
+code, pre {
+  background:#080d1d;
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px;
+  display:block;
+  overflow:auto;
 }
 </style>
 </head>
 
 <body>
 
-<header>OMNI BRAIN X 🧠</header>
+<header>
+  <div class="top">
+    <div class="title">OMNI BRAIN X 🧠</div>
+    <div class="status" id="status">online</div>
+  </div>
+
+  <div class="controls">
+    <select id="mode">
+      <option value="auto">Auto</option>
+      <option value="simple">Simple</option>
+      <option value="normal">Normal</option>
+      <option value="genius">Genius</option>
+      <option value="code">Code</option>
+    </select>
+
+    <div class="rangeWrap">
+      complexity
+      <input id="complexity" type="range" min="1" max="3" value="2">
+    </div>
+
+    <button class="smallBtn" onclick="showMemory()">Memory</button>
+    <button class="smallBtn" onclick="exportMemory()">Export</button>
+    <button class="smallBtn" onclick="resetBrain()">Reset</button>
+  </div>
+</header>
 
 <div id="chat"></div>
 
 <footer>
-  <input id="input" placeholder="hi..." />
+  <input id="input" placeholder="Talk to your evolving brain..." />
   <button onclick="send()">Send</button>
 </footer>
 
 <script>
+// ======================================================
+// OMNI BRAIN X — ONE FILE OFFLINE MINI REASONING SYSTEM
+// ======================================================
 
 // =======================
-// 🧠 MEMORY
+// MEMORY
 // =======================
 
 class Memory {
   constructor(){
-    this.data = JSON.parse(localStorage.getItem("brain_memory") || "{}");
-    if(!this.data.words) this.data.words = {};
+    this.key = "omni_brain_x_memory_v1";
+    this.data = JSON.parse(localStorage.getItem(this.key) || "{}");
+
+    this.data.words ||= {};
+    this.data.facts ||= [];
+    this.data.history ||= [];
+    this.data.stats ||= {
+      messages: 0,
+      learned: 0,
+      codeRequests: 0,
+      questions: 0
+    };
   }
 
   save(){
-    localStorage.setItem("brain_memory", JSON.stringify(this.data));
+    localStorage.setItem(this.key, JSON.stringify(this.data));
+  }
+
+  rememberFact(text){
+    this.data.facts.push({
+      text,
+      time: Date.now()
+    });
+    this.save();
+  }
+
+  addHistory(input, output, intent){
+    this.data.history.push({
+      input,
+      output,
+      intent,
+      time: Date.now()
+    });
+
+    if(this.data.history.length > 80) {
+      this.data.history.shift();
+    }
+
+    this.save();
+  }
+
+  export(){
+    return JSON.stringify(this.data, null, 2);
+  }
+
+  reset(){
+    localStorage.removeItem(this.key);
+    location.reload();
   }
 }
 
 // =======================
-// 🧠 LANGUAGE ENGINE
+// LANGUAGE ENGINE
 // =======================
 
 class LanguageEngine {
@@ -129,71 +284,61 @@ class LanguageEngine {
 
   tokenize(text){
     return text.toLowerCase()
-      .replace(/[^a-z\s]/g,"") // cleaner
+      .replace(/[^a-z0-9\s]/g,"")
       .split(/\s+/)
       .filter(w => w.length > 1);
   }
 
-  learn(sentence){
+  learn(sentence, weight = 1){
     const words = this.tokenize(sentence);
+    if(words.length < 2) return;
 
     for(let i=0;i<words.length;i++){
-      let w = words[i];
-      let next = words[i+1];
+      const w = words[i];
+      const next = words[i+1];
 
-      if(!this.memory.data.words[w]){
-        this.memory.data.words[w] = {};
-      }
+      this.memory.data.words[w] ||= {};
 
       if(next){
-        if(!this.memory.data.words[w][next]){
-          this.memory.data.words[w][next] = 0;
-        }
-        this.memory.data.words[w][next]++;
+        this.memory.data.words[w][next] ||= 0;
+        this.memory.data.words[w][next] += weight;
       }
     }
 
+    this.memory.data.stats.learned++;
     this.memory.save();
   }
 
-  generate(start){
+  generate(start, max = 16){
     let result = [start];
     let current = start;
 
-    for(let i=0;i<12;i++){
-      let options = this.memory.data.words[current];
+    for(let i=0;i<max;i++){
+      const options = this.memory.data.words[current];
       if(!options) break;
 
-      let next = this.pick(options);
+      const next = this.pick(options);
       if(!next) break;
 
       result.push(next);
       current = next;
     }
 
-    if(result.length < 4) return null;
-
+    if(result.length < 5) return null;
     return this.format(result.join(" "));
   }
 
   pick(options){
-    let keys = Object.keys(options);
-
-    // stability bias
-    if(Math.random() < 0.2){
-      return keys[0];
-    }
-
-    let total = 0;
-    for(let k in options) total += options[k];
-
+    const entries = Object.entries(options);
+    const total = entries.reduce((a,[,v]) => a + v, 0);
     let r = Math.random() * total;
-    let sum = 0;
 
-    for(let k in options){
-      sum += options[k];
-      if(r <= sum) return k;
+    for(const [word, weight] of entries){
+      r -= weight;
+      if(r <= 0) return word;
     }
+
+    return entries[0]?.[0];
   }
 
   format(text){
@@ -202,79 +347,415 @@ class LanguageEngine {
 }
 
 // =======================
-// 🧠 BRAIN CORE
+// INTENT DETECTOR
+// =======================
+
+class IntentDetector {
+  detect(input){
+    const t = input.toLowerCase().trim();
+
+    if(["hi","hello","hey","yo"].includes(t)) return "greeting";
+
+    if(t.startsWith("/")) return "command";
+
+    if(t.includes("remember that") || t.startsWith("remember ")) {
+      return "remember";
+    }
+
+    if(
+      t.includes("code") ||
+      t.includes("html") ||
+      t.includes("css") ||
+      t.includes("javascript") ||
+      t.includes("js") ||
+      t.includes("function") ||
+      t.includes("button") ||
+      t.includes("app") ||
+      t.includes("generate") ||
+      t.includes("make me") ||
+      t.includes("make a")
+    ) return "code";
+
+    if(t.includes("?") || /^(what|why|how|when|where|who|can|does|is|are)\b/.test(t)){
+      return "question";
+    }
+
+    if(t.includes("explain") || t.includes("teach")) return "explain";
+
+    if(t.includes("improve") || t.includes("upgrade") || t.includes("fix")) return "improve";
+
+    return "statement";
+  }
+}
+
+// =======================
+// CODE GENERATOR
+// =======================
+
+class CodeGenerator {
+  generate(prompt){
+    const p = prompt.toLowerCase();
+
+    if(p.includes("button")){
+      return `<button onclick="alert('Hello from OMNI')">Click Me</button>`;
+    }
+
+    if(p.includes("card")){
+      return `<div class="card">
+  <h2>OMNI Card</h2>
+  <p>This is a clean generated card.</p>
+</div>
+
+<style>
+.card {
+  padding:20px;
+  border-radius:20px;
+  background:#141c33;
+  color:white;
+  border:1px solid #2b3554;
+}
+</style>`;
+    }
+
+    if(p.includes("gradient")){
+      return `<div class="gradient-bg"></div>
+
+<style>
+.gradient-bg {
+  min-height:100vh;
+  background:
+    radial-gradient(circle at top left, #6675ff, transparent 35%),
+    radial-gradient(circle at bottom right, #9a6cff, transparent 35%),
+    #070b18;
+}
+</style>`;
+    }
+
+    if(p.includes("todo") || p.includes("to-do")){
+      return `<input id="task" placeholder="New task">
+<button onclick="addTask()">Add</button>
+<ul id="list"></ul>
+
+<script>
+function addTask(){
+  const input = document.getElementById("task");
+  if(!input.value.trim()) return;
+
+  const li = document.createElement("li");
+  li.textContent = input.value;
+  document.getElementById("list").appendChild(li);
+  input.value = "";
+}
+<\/script>`;
+    }
+
+    if(p.includes("counter")){
+      return `<button onclick="count++ ; render()">+</button>
+<div id="count"></div>
+
+<script>
+let count = 0;
+function render(){
+  document.getElementById("count").textContent = count;
+}
+render();
+<\/script>`;
+    }
+
+    return `// OMNI Code Generator
+// Try asking for: button, card, gradient, todo, or counter.
+// Prompt received: ${prompt}`;
+  }
+}
+
+// =======================
+// KNOWLEDGE ENGINE
+// =======================
+
+class KnowledgeEngine {
+  answer(input, complexity){
+    const t = input.toLowerCase();
+
+    if(t.includes("what is code") || t.includes("explain code")){
+      return this.style(
+        "Code is a structured set of instructions that tells a computer what to do.",
+        "Code is logic written in a language a machine can execute. It turns ideas into repeatable behavior.",
+        "Code is an executable abstraction layer: it maps input, state, and rules into output through deterministic instructions.",
+        complexity
+      );
+    }
+
+    if(t.includes("what is ai") || t.includes("artificial intelligence")){
+      return this.style(
+        "AI is software that can perform tasks that seem intelligent.",
+        "AI uses patterns, data, rules, and models to make predictions or generate useful responses.",
+        "AI is a system for approximating intelligence through representation, inference, optimization, and feedback loops.",
+        complexity
+      );
+    }
+
+    if(t.includes("memory")){
+      return this.style(
+        "Memory stores information for later.",
+        "Memory lets a system reuse past information instead of starting from zero.",
+        "Memory acts as persistent state, allowing future outputs to be conditioned by prior interactions.",
+        complexity
+      );
+    }
+
+    if(t.includes("equation") || t.includes("complexity")){
+      return `Useful system equations:
+
+learning = experience × feedback
+output = input + memory + rules
+complexity ≈ components × connections
+confidence = evidence - uncertainty
+growth = small improvements over time`;
+    }
+
+    return null;
+  }
+
+  style(simple, normal, genius, complexity){
+    if(complexity <= 1) return simple;
+    if(complexity >= 3) return genius;
+    return normal;
+  }
+}
+
+// =======================
+// OMNI SEED DATA
+// =======================
+
+const OMNI_SEED = [
+  "at a fundamental level systems process input and produce output",
+  "understanding emerges from patterns and repeated interactions",
+  "intelligence adapts based on feedback and experience",
+  "complex systems can be reduced into smaller components",
+  "structure creates stability while flexibility allows growth",
+  "optimization involves balancing tradeoffs between efficiency and accuracy",
+  "scaling a system requires modular design and clear interfaces",
+  "every system operates within constraints and limitations",
+  "patterns form the basis of recognition and prediction",
+  "learning is the process of refining internal representations",
+  "this suggests a deeper underlying pattern",
+  "we can decompose the problem into smaller parts",
+  "a more optimal approach would involve reducing complexity",
+  "there is a tradeoff between simplicity and performance",
+  "the system is operating within defined constraints",
+  "this can be generalized into a broader concept",
+  "we can approximate a solution using known patterns",
+  "the limiting factor appears to be resource constraints",
+  "this behavior emerges from repeated interactions",
+  "the system is adapting over time",
+  "code is a structured way of expressing logic",
+  "functions encapsulate reusable behavior",
+  "variables store state within a system",
+  "loops enable repeated execution of logic",
+  "modular systems are easier to maintain and scale",
+  "debugging involves identifying and correcting errors",
+  "performance depends on algorithm efficiency",
+  "data flows through systems as input and output",
+  "interfaces define how components interact",
+  "abstraction hides unnecessary complexity",
+  "memory stores useful patterns for reuse",
+  "entropy represents uncertainty within a system",
+  "signals carry information through a network",
+  "models approximate reality but are never perfect",
+  "feedback drives improvement",
+  "systems evolve over time",
+  "learning increases as interactions increase",
+  "output depends on input and internal state",
+  "complexity grows with system size",
+  "uncertainty decreases with more information",
+  "optimization reduces error over time",
+  "change occurs as a function of time",
+  "systems evolve through feedback loops",
+  "patterns increase predictive accuracy"
+];
+
+// =======================
+// BRAIN CORE
 // =======================
 
 class Brain {
   constructor(){
     this.memory = new Memory();
     this.lang = new LanguageEngine(this.memory);
+    this.intent = new IntentDetector();
+    this.code = new CodeGenerator();
+    this.knowledge = new KnowledgeEngine();
+
+    this.seedOnce();
   }
 
-  think(input){
-    this.lang.learn(input);
+  seedOnce(){
+    if(this.memory.data.seeded) return;
 
-    let tokens = this.lang.tokenize(input);
+    OMNI_SEED.forEach(s => this.lang.learn(s, 3));
 
-    for(let word of tokens){
-      let output = this.lang.generate(word);
-      if(output) return output;
+    this.memory.data.seeded = true;
+    this.memory.save();
+  }
+
+  think(input, settings){
+    const mode = settings.mode;
+    const complexity = settings.complexity;
+
+    this.memory.data.stats.messages++;
+    this.lang.learn(input, 2);
+
+    let intent = mode === "auto" ? this.intent.detect(input) : mode;
+
+    let output = "";
+
+    if(intent === "greeting"){
+      output = this.greeting(complexity);
     }
 
-    return this.fallback(input);
+    else if(intent === "command"){
+      output = this.command(input);
+    }
+
+    else if(intent === "remember"){
+      const fact = input.replace(/remember that/i,"").replace(/^remember/i,"").trim();
+      this.memory.rememberFact(fact);
+      output = `Remembered: ${fact}`;
+    }
+
+    else if(intent === "code"){
+      this.memory.data.stats.codeRequests++;
+      output = "Generated code:\n\n" + this.code.generate(input);
+    }
+
+    else if(intent === "question" || intent === "explain"){
+      this.memory.data.stats.questions++;
+      output = this.knowledge.answer(input, complexity) || this.reason(input, complexity);
+    }
+
+    else if(intent === "improve"){
+      output = this.improve(input, complexity);
+    }
+
+    else if(intent === "simple" || intent === "normal" || intent === "genius"){
+      output = this.reason(input, intent === "simple" ? 1 : intent === "genius" ? 3 : 2);
+    }
+
+    else {
+      output = this.patternReply(input, complexity);
+    }
+
+    this.memory.addHistory(input, output, intent);
+    return { output, intent };
   }
 
-  fallback(input){
-    const starters = [
-      "I think",
-      "It seems",
-      "Maybe",
-      "I'm learning that"
+  greeting(complexity){
+    if(complexity <= 1) return "Hello. I am online.";
+    if(complexity >= 3) return "Hello. OMNI Brain X is online, memory is active, and the reasoning layer is ready.";
+    return "Hello. I am online and learning from this conversation.";
+  }
+
+  command(input){
+    const cmd = input.toLowerCase().trim();
+
+    if(cmd === "/help"){
+      return `Commands:
+/help — show commands
+/memory — show memory stats
+/reset — erase memory
+/export — export memory
+
+Try:
+make a button
+what is code
+remember that I like minimal UI
+explain memory
+show equations`;
+    }
+
+    if(cmd === "/memory") return this.memorySummary();
+
+    if(cmd === "/export") return this.memory.export();
+
+    if(cmd === "/reset"){
+      this.memory.reset();
+      return "Resetting memory.";
+    }
+
+    return "Unknown command. Try /help.";
+  }
+
+  memorySummary(){
+    const s = this.memory.data.stats;
+    return `Memory summary:
+messages: ${s.messages}
+learned patterns: ${s.learned}
+questions: ${s.questions}
+code requests: ${s.codeRequests}
+facts remembered: ${this.memory.data.facts.length}
+word nodes: ${Object.keys(this.memory.data.words).length}`;
+  }
+
+  reason(input, complexity){
+    const t = input.toLowerCase();
+    const tokens = this.lang.tokenize(t);
+
+    if(complexity <= 1){
+      return "I understand this as a request for a clear answer. The main idea is to simplify the problem and respond directly.";
+    }
+
+    if(complexity >= 3){
+      return `At a fundamental level, this can be treated as a system problem.
+
+Input: ${input}
+Detected structure: ${tokens.slice(0,6).join(", ") || "general language"}
+Reasoning model:
+output = input + memory + rules
+confidence = evidence - uncertainty
+
+My best interpretation is that you want a deeper explanation, so I would decompose the topic, identify constraints, then generate a useful next step.`;
+    }
+
+    return "This looks like a reasoning question. I would break it into smaller parts, identify the goal, then choose the simplest useful answer.";
+  }
+
+  improve(input, complexity){
+    if(complexity <= 1){
+      return "To improve it, make it clearer, smaller, and easier to use.";
+    }
+
+    if(complexity >= 3){
+      return `Upgrade path:
+1. Add intent detection before generation.
+2. Separate memory, reasoning, and code modules.
+3. Reduce noisy self-training.
+4. Add commands and export tools.
+5. Use complexity control for response depth.
+
+This improves stability, scalability, and user control.`;
+    }
+
+    return "Best improvement: add intent detection first, then route code, questions, memory, and normal chat into separate modules.";
+  }
+
+  patternReply(input, complexity){
+    const tokens = this.lang.tokenize(input);
+
+    for(const word of tokens){
+      const generated = this.lang.generate(word, complexity >= 3 ? 22 : 14);
+      if(generated) return generated;
+    }
+
+    const fallback = [
+      "I am learning from this input.",
+      "This adds a new pattern to memory.",
+      "I need more examples to respond with confidence.",
+      "I recognize this as new information."
     ];
-    return starters[Math.floor(Math.random()*starters.length)] + " " + input;
+
+    return fallback[Math.floor(Math.random() * fallback.length)];
   }
 }
-
-// =======================
-// 🔁 AUTO TRAINER
-// =======================
-
-class AutoTrainer {
-  constructor(brain, data){
-    this.brain = brain;
-    this.data = data;
-  }
-
-  start(speed = 800){
-    this.interval = setInterval(()=>{
-      let s = this.data[Math.floor(Math.random()*this.data.length)];
-      this.brain.lang.learn(s);
-
-      let tokens = this.brain.lang.tokenize(s);
-      if(tokens.length){
-        let gen = this.brain.lang.generate(tokens[0]);
-        if(gen) this.brain.lang.learn(gen);
-      }
-    }, speed);
-  }
-}
-
-// =======================
-// 📚 BASE DATASET
-// =======================
-
-const DATA = [
-  "systems process input and produce output",
-  "learning improves performance over time",
-  "patterns create understanding",
-  "intelligence adapts to change",
-  "ideas create knowledge",
-  "feedback improves systems",
-  "small changes lead to growth",
-  "understanding comes from experience",
-  "logic builds structure",
-  "structure creates stability"
-];
 
 // =======================
 // UI
@@ -283,11 +764,22 @@ const DATA = [
 const brain = new Brain();
 const chat = document.getElementById("chat");
 const input = document.getElementById("input");
+const mode = document.getElementById("mode");
+const complexity = document.getElementById("complexity");
+const statusEl = document.getElementById("status");
 
-function add(text,type){
+function add(text, type, meta = ""){
   const d = document.createElement("div");
   d.className = "msg " + type;
   d.textContent = text;
+
+  if(meta){
+    const m = document.createElement("div");
+    m.className = "meta";
+    m.textContent = meta;
+    d.appendChild(m);
+  }
+
   chat.appendChild(d);
   chat.scrollTop = chat.scrollHeight;
 }
@@ -296,27 +788,59 @@ function send(){
   const text = input.value.trim();
   if(!text) return;
 
-  add(text,"user");
+  add(text, "user");
   input.value = "";
 
+  statusEl.textContent = "thinking";
+
   setTimeout(()=>{
-    const reply = brain.think(text);
-    add(reply,"bot");
-  },150);
+    const settings = {
+      mode: mode.value,
+      complexity: Number(complexity.value)
+    };
+
+    const result = brain.think(text, settings);
+    add(result.output, "bot", "intent: " + result.intent);
+    statusEl.textContent = "online";
+  }, 120);
 }
 
-input.addEventListener("keydown",e=>{
-  if(e.key==="Enter") send();
+function showMemory(){
+  add(brain.memorySummary(), "bot", "memory");
+}
+
+function exportMemory(){
+  const blob = new Blob([brain.memory.export()], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "omni-brain-memory.json";
+  a.click();
+
+  URL.revokeObjectURL(url);
+  add("Memory exported as JSON.", "bot");
+}
+
+function resetBrain(){
+  if(confirm("Erase OMNI Brain X memory?")){
+    brain.memory.reset();
+  }
+}
+
+input.addEventListener("keydown", e => {
+  if(e.key === "Enter") send();
 });
 
-// =======================
-// OPTIONAL AUTO EVOLUTION
-// =======================
+add(`OMNI Brain X online.
 
-const trainer = new AutoTrainer(brain, DATA);
-trainer.start(500); // uncomment to enable auto-learning
+Try:
+/help
+what is code
+make a button
+remember that I like minimal UI
+show equations`, "bot", "system");
 
 </script>
-
 </body>
 </html>
