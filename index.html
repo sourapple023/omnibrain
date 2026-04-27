@@ -28,6 +28,17 @@ header {
   top:0;
 }
 
+#statusDot{
+  display:inline-block;
+  width:10px;
+  height:10px;
+  margin-left:8px;
+  border-radius:50%;
+  background:#58ff9a;
+  box-shadow:0 0 12px #58ff9a;
+  vertical-align:middle;
+}
+
 #chat {
   flex:1;
   overflow-y:auto;
@@ -94,7 +105,7 @@ button {
 
 <body>
 
-<header>OMNI BRAIN X 🧠</header>
+<header>OMNI BRAIN X 🧠 <span id="statusDot" title="mood"></span></header>
 
 <div id="chat"></div>
 
@@ -106,8 +117,10 @@ button {
 <script>
 
 // =====================================================
-// OMNI BRAIN X — BACKEND UPGRADE
-// One file. Offline. Learns locally. No API.
+// OMNI BRAIN X
+// Offline local brain. No API. Learns locally.
+// Backend upgraded with memory, goals, research, recall,
+// confidence, tasks, notes, reasoning, and command tools.
 // =====================================================
 
 
@@ -128,9 +141,14 @@ class Memory {
     this.data.mood ||= "curious";
     this.data.evolution ||= 1;
     this.data.notes ||= [];
+    this.data.sources ||= [];
+    this.data.research ||= [];
+    this.data.tasks ||= [];
+    this.data.preferences ||= {};
     this.data.identity ||= {
       name: "Omni Brain X",
-      mode: "offline local brain"
+      mode: "offline local brain",
+      version: "10x"
     };
   }
 
@@ -140,7 +158,7 @@ class Memory {
 
   addHistory(role, text){
     this.data.history.push({ role, text, time: Date.now() });
-    if(this.data.history.length > 160) this.data.history.shift();
+    if(this.data.history.length > 220) this.data.history.shift();
     this.save();
   }
 
@@ -159,16 +177,24 @@ class TextTools {
   static clean(text){
     return String(text)
       .toLowerCase()
-      .replace(/[^a-z0-9\s+\-*/=().!?:"']/g," ")
+      .replace(/[^a-z0-9\s+\-*/=().!?:"',]/g," ")
       .replace(/\s+/g," ")
       .trim();
   }
 
   static words(text){
     return this.clean(text)
-      .replace(/[.!?=()+\-*/:"']/g," ")
+      .replace(/[.!?=()+\-*/:"',]/g," ")
       .split(/\s+/)
       .filter(w => w.length > 1);
+  }
+
+  static sentences(text){
+    return String(text)
+      .replace(/\s+/g," ")
+      .split(/(?<=[.!?])\s+/)
+      .map(s => s.trim())
+      .filter(Boolean);
   }
 
   static sentence(text){
@@ -197,6 +223,30 @@ class TextTools {
     }
 
     return score / Math.max(aw.length, bw.length);
+  }
+
+  static keywords(text, limit=12){
+    const stop = new Set([
+      "the","and","for","you","that","this","with","from","are","was","were",
+      "what","when","where","why","how","can","could","would","should","about",
+      "into","your","have","has","had","but","not","all","any","one","two",
+      "like","make","give","tell","then","than","also","very","just"
+    ]);
+
+    const counts = {};
+    for(const w of this.words(text)){
+      if(stop.has(w)) continue;
+      counts[w] = (counts[w] || 0) + 1;
+    }
+
+    return Object.entries(counts)
+      .sort((a,b)=>b[1]-a[1])
+      .slice(0,limit)
+      .map(x=>x[0]);
+  }
+
+  static clamp(n,min,max){
+    return Math.max(min, Math.min(max, n));
   }
 }
 
@@ -242,23 +292,28 @@ class LanguageEngine {
 
     const clean = TextTools.clean(sentence);
     if(clean.length > 8 && !this.memory.data.facts.includes(clean)){
-      if(this.memory.data.facts.length < 1200) this.memory.data.facts.push(clean);
+      if(this.memory.data.facts.length < 1600) this.memory.data.facts.push(clean);
     }
 
     this.memory.save();
+  }
+
+  learnMany(text){
+    const chunks = TextTools.sentences(text);
+    for(const s of chunks.slice(0,80)) this.learn(s);
   }
 
   generate(start){
     let result = [start];
     let current = start;
 
-    for(let i=0;i<18;i++){
+    for(let i=0;i<22;i++){
       const options = this.memory.data.words[current];
       if(!options) break;
 
       const next = this.pickWeighted(options);
       if(!next) break;
-      if(result.slice(-4).includes(next)) break;
+      if(result.slice(-5).includes(next)) break;
 
       result.push(next);
       current = next;
@@ -285,7 +340,7 @@ class LanguageEngine {
     return entries[0][0];
   }
 
-  related(word, limit=6){
+  related(word, limit=8){
     const c = this.memory.data.concepts[word];
     if(!c) return [];
 
@@ -300,7 +355,9 @@ class LanguageEngine {
       .replace(/\bi\b/g,"I")
       .replace(/\bim\b/g,"I'm")
       .replace(/\bdont\b/g,"don't")
-      .replace(/\bcant\b/g,"can't");
+      .replace(/\bcant\b/g,"can't")
+      .replace(/\bwont\b/g,"won't")
+      .replace(/\bits\b/g,"it's");
   }
 }
 
@@ -314,43 +371,153 @@ class RecallEngine {
     this.brain = brain;
   }
 
-  bestFact(input){
-    const facts = this.brain.memory.data.facts || [];
-    let best = "";
+  bestFromList(input, list, extractor){
+    let best = null;
     let bestScore = 0;
 
-    for(const fact of facts){
-      const score = TextTools.scoreOverlap(input, fact);
+    for(const item of list){
+      const text = extractor ? extractor(item) : item;
+      const score = TextTools.scoreOverlap(input, text);
       if(score > bestScore){
         bestScore = score;
-        best = fact;
+        best = item;
       }
     }
 
-    return bestScore >= 0.18 ? best : "";
+    return { item: best, score: bestScore };
+  }
+
+  bestFact(input){
+    const r = this.bestFromList(input, this.brain.memory.data.facts || []);
+    return r.score >= 0.18 ? r.item : "";
   }
 
   bestGoal(input){
-    const goals = this.brain.memory.data.goals || [];
-    let best = "";
-    let bestScore = 0;
-
-    for(const goal of goals){
-      const score = TextTools.scoreOverlap(input, goal);
-      if(score > bestScore){
-        bestScore = score;
-        best = goal;
-      }
-    }
-
-    return bestScore >= 0.12 ? best : "";
+    const r = this.bestFromList(input, this.brain.memory.data.goals || []);
+    return r.score >= 0.12 ? r.item : "";
   }
 
-  recentContext(limit=5){
+  bestNote(input){
+    const r = this.bestFromList(input, this.brain.memory.data.notes || [], n => n.text);
+    return r.score >= 0.14 ? r.item : null;
+  }
+
+  bestResearch(input){
+    const r = this.bestFromList(input, this.brain.memory.data.research || [], x => x.text + " " + x.keywords.join(" "));
+    return r.score >= 0.10 ? r.item : null;
+  }
+
+  recentContext(limit=6){
     return this.brain.memory.data.history
       .slice(-limit)
       .map(x => `${x.role}: ${x.text}`)
       .join("\n");
+  }
+}
+
+
+// =======================
+// 📚 RESEARCH ENGINE
+// =======================
+
+class ResearchEngine {
+  constructor(brain){
+    this.brain = brain;
+  }
+
+  ingest(text, title="Manual research"){
+    const clean = String(text).trim();
+    if(clean.length < 20) return "Research text is too short.";
+
+    const keywords = TextTools.keywords(clean, 14);
+    const summary = this.summarize(clean);
+
+    const entry = {
+      id: Date.now(),
+      title,
+      text: clean.slice(0,8000),
+      summary,
+      keywords,
+      time: Date.now()
+    };
+
+    this.brain.memory.data.research.push(entry);
+    if(this.brain.memory.data.research.length > 60) this.brain.memory.data.research.shift();
+
+    this.brain.lang.learnMany(clean);
+    this.brain.memory.save();
+
+    return `Research stored.
+
+Title: ${title}
+Keywords: ${keywords.join(", ")}
+
+Summary:
+${summary}`;
+  }
+
+  summarize(text){
+    const sentences = TextTools.sentences(text);
+    if(!sentences.length) return "No summary available.";
+
+    const keys = TextTools.keywords(text, 10);
+    const scored = sentences.map(s => {
+      let score = 0;
+      for(const k of keys){
+        if(TextTools.words(s).includes(k)) score++;
+      }
+      return { s, score };
+    });
+
+    return scored
+      .sort((a,b)=>b.score-a.score)
+      .slice(0,4)
+      .map(x=>TextTools.sentence(x.s))
+      .join("\n");
+  }
+
+  answer(question){
+    const best = this.brain.recall.bestResearch(question);
+    if(!best) return null;
+
+    const qWords = TextTools.words(question);
+    const sentences = TextTools.sentences(best.text);
+
+    const ranked = sentences.map(s => {
+      let score = 0;
+      const sw = TextTools.words(s);
+      for(const w of qWords){
+        if(sw.includes(w)) score++;
+      }
+      return { s, score };
+    }).sort((a,b)=>b.score-a.score);
+
+    const useful = ranked.filter(x=>x.score>0).slice(0,4).map(x=>TextTools.sentence(x.s));
+
+    return `From research: ${best.title}
+
+${useful.length ? useful.join("\n") : best.summary}
+
+Confidence: ${this.confidenceLabel(TextTools.scoreOverlap(question, best.text))}
+Keywords: ${best.keywords.slice(0,8).join(", ")}`;
+  }
+
+  confidenceLabel(score){
+    if(score >= 0.24) return "high";
+    if(score >= 0.13) return "medium";
+    return "low";
+  }
+
+  list(){
+    const list = this.brain.memory.data.research || [];
+    if(!list.length) return "No research stored yet.";
+    return "Research library:\n" + list.slice(-10).map((r,i)=>`${i+1}. ${r.title} | ${r.keywords.slice(0,5).join(", ")}`).join("\n");
+  }
+
+  clear(){
+    this.brain.memory.data.research = [];
+    this.brain.memory.save();
+    return "Research library cleared.";
   }
 }
 
@@ -374,7 +541,9 @@ class SkillEngine {
       this.explain(clean) ||
       this.summarize(clean) ||
       this.compare(clean) ||
-      this.brainstorm(clean)
+      this.brainstorm(clean) ||
+      this.decide(clean) ||
+      this.todo(clean)
     );
   }
 
@@ -408,14 +577,16 @@ class SkillEngine {
     if(!(clean.includes("plan") || clean.includes("steps") || clean.startsWith("how do i"))) return null;
 
     const goal = this.brain.recall.bestGoal(clean);
+    const research = this.brain.recall.bestResearch(clean);
 
     return `Plan:
-1. Define the goal clearly.
-2. Break it into small parts.
-3. Build the simplest working version.
-4. Test what works and what fails.
-5. Improve one piece at a time.
-6. Save what works as a reusable system.${goal ? "\n\nMemory link: this may connect to your goal: " + goal : ""}`;
+1. Name the target.
+2. List the smallest useful version.
+3. Build one working piece.
+4. Test it with real input.
+5. Save what works.
+6. Improve the weakest part.
+7. Repeat until it feels reliable.${goal ? "\n\nGoal link: " + goal : ""}${research ? "\n\nResearch link: " + research.title : ""}`;
   }
 
   code(clean){
@@ -426,15 +597,22 @@ class SkillEngine {
 - functions handle behavior
 - memory stores useful state
 - input becomes output through logic
+- commands give the system direct abilities
+- recall lets old knowledge help new questions
 
 Example:
 function think(input){
-  return "Processed: " + input;
+  const clean = input.trim().toLowerCase();
+  if(clean.includes("hello")) return "Hello.";
+  return "";
 }`;
   }
 
   explain(clean){
     if(!(clean.startsWith("what is") || clean.startsWith("why") || clean.startsWith("how"))) return null;
+
+    const researchAnswer = this.brain.research.answer(clean);
+    if(researchAnswer) return researchAnswer;
 
     const words = TextTools.words(clean);
     const known = words.find(w => this.brain.memory.data.concepts[w]);
@@ -458,10 +636,9 @@ function think(input){
     if(!clean.startsWith("summarize ")) return null;
 
     const text = clean.replace("summarize ","");
-    const words = TextTools.words(text);
-    const important = TextTools.unique(words).slice(0,8);
-
-    return `Summary: this is mainly about ${important.join(", ")}.`;
+    const summary = this.brain.research.summarize(text);
+    return `Summary:
+${summary}`;
   }
 
   compare(clean){
@@ -472,9 +649,14 @@ function think(input){
     const b = words[1] || "second idea";
 
     return `Comparison:
-${a}: one concept with its own pattern.
-${b}: another concept with a different pattern.
-Connection: both can be understood by looking at purpose, structure, and results.`;
+${a}: look at purpose, structure, strengths, and limits.
+${b}: look at purpose, structure, strengths, and limits.
+
+Shared test:
+1. What problem does each solve?
+2. What does each require?
+3. What breaks first?
+4. Which one helps your goal more?`;
   }
 
   brainstorm(clean){
@@ -488,7 +670,35 @@ Connection: both can be understood by looking at purpose, structure, and results
 2. Add memory so it improves over time.
 3. Add modes for different tasks.
 4. Let users teach it directly.
-5. Save everything locally so it becomes personal.`;
+5. Save everything locally.
+6. Add research ingestion.
+7. Add confidence labels.
+8. Add export and import.`;
+  }
+
+  decide(clean){
+    if(!(clean.includes("should i") || clean.includes("which is better"))) return null;
+
+    return `Decision frame:
+1. Choose the option that creates the most useful next step.
+2. Prefer reversible choices.
+3. Avoid adding complexity before the core works.
+4. Test with one small version first.
+5. Keep what improves results.
+
+My lean: start small, then upgrade only where the system feels limited.`;
+  }
+
+  todo(clean){
+    if(!(clean.startsWith("todo ") || clean.startsWith("task "))) return null;
+
+    const task = clean.replace(/^todo\s+/,"").replace(/^task\s+/,"").trim();
+    if(!task) return null;
+
+    this.brain.memory.data.tasks.push({ text: task, done:false, time: Date.now() });
+    this.brain.memory.save();
+
+    return "Task saved.";
   }
 }
 
@@ -502,6 +712,7 @@ class Brain {
     this.memory = new Memory();
     this.lang = new LanguageEngine(this.memory);
     this.recall = new RecallEngine(this);
+    this.research = new ResearchEngine(this);
     this.skills = new SkillEngine(this);
   }
 
@@ -526,6 +737,7 @@ class Brain {
 
     this.memory.data.evolution++;
     this.memory.save();
+    updateStatusDot(this.memory.data.mood);
 
     return reply;
   }
@@ -539,10 +751,18 @@ teach [sentence]
 remember [fact]
 goal [goal]
 note [note]
+research [paste text]
+research title: [title] text: [paste text]
+ask research [question]
+research library
+clear research
 memory
 mood
 goals
 facts
+notes
+tasks
+done [number]
 context
 stabilize
 export
@@ -550,12 +770,13 @@ import [json]
 reset brain
 summarize [text]
 compare [thing] and [thing]
+todo [task]
 Try math like: 12 * (4 + 2)`;
     }
 
     if(clean.startsWith("teach ")){
       const lesson = input.slice(6);
-      this.lang.learn(lesson);
+      this.lang.learnMany(lesson);
       return "I learned that pattern.";
     }
 
@@ -583,6 +804,30 @@ Try math like: 12 * (4 + 2)`;
       return "Note saved.";
     }
 
+    if(clean.startsWith("research title:")){
+      const raw = input.slice(15).trim();
+      const parts = raw.split(/text:/i);
+      const title = parts[0]?.trim() || "Manual research";
+      const text = parts.slice(1).join("text:").trim();
+      return this.research.ingest(text, title);
+    }
+
+    if(clean.startsWith("research ")){
+      return this.research.ingest(input.slice(9), "Manual research");
+    }
+
+    if(clean.startsWith("ask research ")){
+      return this.research.answer(input.slice(13)) || "I do not have enough matching research yet.";
+    }
+
+    if(clean === "research library"){
+      return this.research.list();
+    }
+
+    if(clean === "clear research"){
+      return this.research.clear();
+    }
+
     if(clean === "goals"){
       return this.memory.data.goals.length
         ? "Goals:\n" + this.memory.data.goals.map((g,i)=>`${i+1}. ${g}`).join("\n")
@@ -593,6 +838,29 @@ Try math like: 12 * (4 + 2)`;
       return this.memory.data.facts.length
         ? "Recent facts:\n" + this.memory.data.facts.slice(-12).map((f,i)=>`${i+1}. ${f}`).join("\n")
         : "No facts stored yet.";
+    }
+
+    if(clean === "notes"){
+      return this.memory.data.notes.length
+        ? "Notes:\n" + this.memory.data.notes.slice(-12).map((n,i)=>`${i+1}. ${n.text}`).join("\n")
+        : "No notes stored yet.";
+    }
+
+    if(clean === "tasks"){
+      const tasks = this.memory.data.tasks || [];
+      return tasks.length
+        ? "Tasks:\n" + tasks.map((t,i)=>`${i+1}. ${t.done ? "✓" : "□"} ${t.text}`).join("\n")
+        : "No tasks stored yet.";
+    }
+
+    if(clean.startsWith("done ")){
+      const n = parseInt(clean.replace("done ",""),10) - 1;
+      if(this.memory.data.tasks[n]){
+        this.memory.data.tasks[n].done = true;
+        this.memory.save();
+        return "Task marked done.";
+      }
+      return "I could not find that task number.";
     }
 
     if(clean === "context"){
@@ -640,21 +908,30 @@ Try math like: 12 * (4 + 2)`;
       return "A complex task becomes easier when it is broken into smaller systems. Each part should have one job.";
     }
 
+    if(clean.includes("because")){
+      return "That looks like cause and effect. I would separate the cause, the action, the result, and the feedback loop.";
+    }
+
     const known = words.filter(w => this.memory.data.concepts[w]);
     if(known.length >= 2){
       const a = known[0];
       const b = known[1];
       const goal = this.recall.bestGoal(input);
+      const note = this.recall.bestNote(input);
 
-      return `${TextTools.sentence(a)} and ${b} are connected through learned patterns. A useful next step is to compare their purpose, structure, and effect.${goal ? "\n\nGoal connection: " + goal : ""}`;
+      return `${TextTools.sentence(a)} and ${b} are connected through learned patterns. A useful next step is to compare their purpose, structure, and effect.${goal ? "\n\nGoal connection: " + goal : ""}${note ? "\n\nNote connection: " + note.text : ""}`;
     }
 
     return null;
   }
 
   memoryAnswer(input){
+    const research = this.research.answer(input);
+    if(research) return research;
+
     const fact = this.recall.bestFact(input);
     const goal = this.recall.bestGoal(input);
+    const note = this.recall.bestNote(input);
 
     if(fact && goal){
       return `I can connect this to memory and goals.
@@ -664,6 +941,12 @@ Memory: ${fact}
 Goal: ${goal}
 
 Useful next move: use the memory as context, then take one small action toward the goal.`;
+    }
+
+    if(note){
+      return `This connects to a note:
+
+${note.text}`;
     }
 
     if(goal){
@@ -691,15 +974,23 @@ A useful next move is to turn it into one small action.`;
   fallback(input){
     const goals = this.memory.data.goals || [];
     const facts = this.memory.data.facts || [];
+    const research = this.memory.data.research || [];
+
+    if(research.length && Math.random() < 0.45){
+      const r = TextTools.pick(research);
+      return `I do not fully know yet, but this may connect to research: ${r.title}
+
+${r.summary}`;
+    }
 
     if(goals.length){
       const goal = TextTools.pick(goals);
-      return `I don’t fully know yet, but I can connect this to your goal: ${goal}`;
+      return `I do not fully know yet, but I can connect this to your goal: ${goal}`;
     }
 
     if(facts.length){
       const fact = TextTools.pick(facts);
-      return `I’m not certain, but I remember this: ${fact}`;
+      return `I am not certain, but I remember this: ${fact}`;
     }
 
     return "";
@@ -708,7 +999,8 @@ A useful next move is to turn it into one small action.`;
   updateMood(input){
     const clean = TextTools.clean(input);
 
-    if(clean.includes("code") || clean.includes("build")) this.memory.data.mood = "builder";
+    if(clean.includes("research") || clean.includes("source")) this.memory.data.mood = "researching";
+    else if(clean.includes("code") || clean.includes("build")) this.memory.data.mood = "builder";
     else if(/[0-9+\-*/=]/.test(clean)) this.memory.data.mood = "logical";
     else if(clean.includes("why") || clean.includes("how")) this.memory.data.mood = "curious";
     else if(clean.includes("god") || clean.includes("truth") || clean.includes("love")) this.memory.data.mood = "reflective";
@@ -722,6 +1014,8 @@ Concepts: ${Object.keys(this.memory.data.concepts).length}
 Facts: ${this.memory.data.facts.length}
 Goals: ${this.memory.data.goals.length}
 Notes: ${this.memory.data.notes.length}
+Research items: ${this.memory.data.research.length}
+Tasks: ${this.memory.data.tasks.length}
 History: ${this.memory.data.history.length}
 Evolution: ${this.memory.data.evolution}
 Mood: ${this.memory.data.mood}`;
@@ -802,7 +1096,7 @@ class AutoTrainer {
     this.running = false;
   }
 
-  start(speed = 2000){
+  start(speed = 2500){
     if(this.running) return;
     this.running = true;
 
@@ -856,6 +1150,9 @@ const DATA = [
   "facts give the brain grounded memory",
   "notes preserve useful thoughts",
   "recall connects new questions to stored knowledge",
+  "research gives answers stronger grounding",
+  "confidence should match evidence",
+  "tasks turn ideas into action",
   "a local brain becomes more personal as it learns"
 ];
 
@@ -868,6 +1165,28 @@ const brain = new Brain();
 const trainer = new AutoTrainer(brain, DATA);
 const chat = document.getElementById("chat");
 const input = document.getElementById("input");
+const statusDot = document.getElementById("statusDot");
+
+function updateStatusDot(mood){
+  if(!statusDot) return;
+
+  const colors = {
+    builder:"#62a8ff",
+    logical:"#c084fc",
+    curious:"#58ff9a",
+    reflective:"#ffd166",
+    learning:"#6fffe9",
+    researching:"#ff7ad9",
+    focused:"#ffffff",
+    calm:"#8ecae6",
+    creative:"#ffb703"
+  };
+
+  const color = colors[mood] || "#58ff9a";
+  statusDot.style.background = color;
+  statusDot.style.boxShadow = `0 0 12px ${color}`;
+  statusDot.title = "Mood: " + mood;
+}
 
 function add(text,type){
   if(!text) return;
@@ -896,7 +1215,8 @@ input.addEventListener("keydown",e=>{
   if(e.key==="Enter") send();
 });
 
-trainer.start(2000);
+trainer.start(2500);
+updateStatusDot(brain.memory.data.mood);
 
 //add("Omni Brain X", "bot");
 
