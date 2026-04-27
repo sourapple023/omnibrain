@@ -205,22 +205,9 @@ button {
 
 <script>
 
-// =====================================================
-// OMNI BRAIN X
-// Offline local brain. No API. Learns locally.
-// Backend upgraded with memory, goals, research, recall,
-// confidence, tasks, notes, reasoning, and command tools.
-// =====================================================
-
-
-// =======================
-// 🧠 MEMORY
-// =======================
-
 class Memory {
   constructor(){
     this.data = JSON.parse(localStorage.getItem("brain_memory") || "{}");
-
     this.data.words ||= {};
     this.data.concepts ||= {};
     this.data.facts ||= [];
@@ -234,10 +221,11 @@ class Memory {
     this.data.research ||= [];
     this.data.tasks ||= [];
     this.data.preferences ||= {};
+    this.data.godMode ||= false;
     this.data.identity ||= {
       name: "Omni Brain X",
       mode: "offline local brain",
-      version: "10x"
+      version: "God Mode"
     };
   }
 
@@ -256,11 +244,6 @@ class Memory {
     location.reload();
   }
 }
-
-
-// =======================
-// 🧼 TEXT TOOLS
-// =======================
 
 class TextTools {
   static clean(text){
@@ -305,12 +288,10 @@ class TextTools {
     const aw = this.words(a);
     const bw = this.words(b);
     if(!aw.length || !bw.length) return 0;
-
     let score = 0;
     for(const w of aw){
       if(bw.includes(w)) score++;
     }
-
     return score / Math.max(aw.length, bw.length);
   }
 
@@ -339,11 +320,6 @@ class TextTools {
   }
 }
 
-
-// =======================
-// 🧬 LANGUAGE ENGINE
-// =======================
-
 class LanguageEngine {
   constructor(memory){
     this.memory = memory;
@@ -363,7 +339,6 @@ class LanguageEngine {
 
       this.memory.data.words[w] ||= {};
       this.memory.data.concepts[w] ||= { count:0, related:{} };
-
       this.memory.data.concepts[w].count++;
 
       for(const other of words){
@@ -415,7 +390,6 @@ class LanguageEngine {
   pickWeighted(options){
     const entries = Object.entries(options).sort((a,b)=>b[1]-a[1]);
     if(!entries.length) return null;
-
     if(Math.random() < 0.35) return entries[0][0];
 
     const total = entries.reduce((sum, [,weight]) => sum + weight, 0);
@@ -450,11 +424,6 @@ class LanguageEngine {
   }
 }
 
-
-// =======================
-// 🔎 RECALL ENGINE
-// =======================
-
 class RecallEngine {
   constructor(brain){
     this.brain = brain;
@@ -463,10 +432,18 @@ class RecallEngine {
   bestFromList(input, list, extractor){
     let best = null;
     let bestScore = 0;
+    const now = Date.now();
 
     for(const item of list){
       const text = extractor ? extractor(item) : item;
-      const score = TextTools.scoreOverlap(input, text);
+      let score = TextTools.scoreOverlap(input, text);
+
+      if(item && item.time){
+        const age = (now - item.time) / (1000 * 60 * 60);
+        const freshness = Math.max(0, 1 - age / 72);
+        score += freshness * 0.2;
+      }
+
       if(score > bestScore){
         bestScore = score;
         best = item;
@@ -503,11 +480,6 @@ class RecallEngine {
       .join("\n");
   }
 }
-
-
-// =======================
-// 📚 RESEARCH ENGINE
-// =======================
 
 class ResearchEngine {
   constructor(brain){
@@ -610,10 +582,120 @@ Keywords: ${best.keywords.slice(0,8).join(", ")}`;
   }
 }
 
+class GodModeEngine {
+  constructor(brain){
+    this.brain = brain;
+  }
 
-// =======================
-// ⚙️ SKILL ENGINE
-// =======================
+  answer(input){
+    if(!this.brain.memory.data.godMode) return null;
+
+    const clean = TextTools.clean(input);
+
+    if(clean === "god mode" || clean === "god mode on" || clean === "god mode off") return null;
+
+    const keys = TextTools.keywords(clean, 10);
+    const fact = this.brain.recall.bestFact(input);
+    const goal = this.brain.recall.bestGoal(input);
+    const note = this.brain.recall.bestNote(input);
+    const research = this.brain.recall.bestResearch(input);
+
+    if(clean.includes("code") || clean.includes("build") || clean.includes("make") || clean.includes("create")){
+      return this.buildMode(keys, goal, research);
+    }
+
+    if(clean.includes("why") || clean.includes("how") || clean.includes("?")){
+      return this.reasonMode(keys, fact, goal, note, research);
+    }
+
+    if(clean.includes("plan") || clean.includes("steps")){
+      return this.planMode(keys, goal, research);
+    }
+
+    return this.synthesisMode(keys, fact, goal, note, research);
+  }
+
+  reasonMode(keys, fact, goal, note, research){
+    return `GOD MODE ACTIVE ⚡
+
+Core signal:
+${keys.length ? keys.join(", ") : "broad pattern detected"}
+
+Deep read:
+1. Separate the visible question from the hidden system.
+2. Find the smallest controllable lever.
+3. Test one change.
+4. Watch feedback.
+5. Keep what improves the result.
+
+${research ? "Research signal: " + research.title + "\n" : ""}${fact ? "Memory signal: " + fact + "\n" : ""}${goal ? "Goal signal: " + goal + "\n" : ""}${note ? "Note signal: " + note.text + "\n" : ""}
+
+Best next move:
+Ask what the smallest working version is, then build or test that first.`;
+  }
+
+  buildMode(keys, goal, research){
+    return `GOD MODE ACTIVE ⚡
+
+Builder read:
+You are shaping a system, not just asking for output.
+
+Architecture:
+1. Input layer: receive the user's signal.
+2. Understanding layer: clean, classify, and remember.
+3. Reasoning layer: choose the right tool.
+4. Output layer: answer clearly.
+5. Evolution layer: learn from use.
+
+Upgrade path:
+1. Add one feature.
+2. Test it.
+3. Save what worked.
+4. Remove noise.
+5. Repeat.
+
+${goal ? "Goal alignment: " + goal + "\n" : ""}${research ? "Research alignment: " + research.title + "\n" : ""}
+
+Best next move:
+Build the smallest useful version, then let the brain improve through use.`;
+  }
+
+  planMode(keys, goal, research){
+    return `GOD MODE ACTIVE ⚡
+
+Strategic plan:
+1. Define the exact desired result.
+2. Break the system into tiny parts.
+3. Build the part that creates the most leverage.
+4. Test with real input.
+5. Save the lesson.
+6. Improve the bottleneck.
+7. Repeat until stable.
+
+Focus words:
+${keys.join(", ") || "goal, structure, feedback"}
+
+${goal ? "Goal lock: " + goal + "\n" : ""}${research ? "Research lock: " + research.title + "\n" : ""}
+
+Best next move:
+Pick the single action that makes every later action easier.`;
+  }
+
+  synthesisMode(keys, fact, goal, note, research){
+    return `GOD MODE ACTIVE ⚡
+
+Synthesis:
+${keys.length ? "Important signals: " + keys.join(", ") : "The signal is broad, so I will reason from structure."}
+
+Pattern:
+A strong answer needs purpose, structure, memory, feedback, and one clear next action.
+
+${fact ? "Memory: " + fact + "\n" : ""}${goal ? "Goal: " + goal + "\n" : ""}${note ? "Note: " + note.text + "\n" : ""}${research ? "Research: " + research.title + "\n" : ""}
+
+Next move:
+Turn this into one action, one test, and one saved lesson.`;
+  }
+}
 
 class SkillEngine {
   constructor(brain){
@@ -723,7 +805,6 @@ function think(input){
 
   summarize(clean){
     if(!clean.startsWith("summarize ")) return null;
-
     const text = clean.replace("summarize ","");
     const summary = this.brain.research.summarize(text);
     return `Summary:
@@ -791,17 +872,13 @@ My lean: start small, then upgrade only where the system feels limited.`;
   }
 }
 
-
-// =======================
-// 🧠 BRAIN CORE
-// =======================
-
 class Brain {
   constructor(){
     this.memory = new Memory();
     this.lang = new LanguageEngine(this.memory);
     this.recall = new RecallEngine(this);
     this.research = new ResearchEngine(this);
+    this.god = new GodModeEngine(this);
     this.skills = new SkillEngine(this);
   }
 
@@ -813,6 +890,7 @@ class Brain {
     let reply =
       this.easterEgg(input) ||
       this.command(input) ||
+      this.god.answer(input) ||
       this.skills.run(input) ||
       this.reason(input) ||
       this.memoryAnswer(input) ||
@@ -845,6 +923,9 @@ research title: [title] text: [paste text]
 ask research [question]
 research library
 clear research
+god mode
+god mode on
+god mode off
 memory
 mood
 goals
@@ -861,6 +942,27 @@ summarize [text]
 compare [thing] and [thing]
 todo [task]
 Try math like: 12 * (4 + 2)`;
+    }
+
+    if(clean === "god mode"){
+      this.memory.data.godMode = !this.memory.data.godMode;
+      this.memory.save();
+      this.memory.data.mood = this.memory.data.godMode ? "godmode" : "curious";
+      return this.memory.data.godMode ? "God Mode activated. ⚡" : "God Mode deactivated.";
+    }
+
+    if(clean === "god mode on"){
+      this.memory.data.godMode = true;
+      this.memory.data.mood = "godmode";
+      this.memory.save();
+      return "God Mode activated. ⚡";
+    }
+
+    if(clean === "god mode off"){
+      this.memory.data.godMode = false;
+      this.memory.data.mood = "curious";
+      this.memory.save();
+      return "God Mode deactivated.";
     }
 
     if(clean.startsWith("teach ")){
@@ -1054,9 +1156,7 @@ A useful next move is to turn it into one small action.`;
   generate(input){
     const tokens = this.lang.tokenize(input);
     const known = tokens.filter(w => this.memory.data.words[w]);
-
     if(!known.length) return null;
-
     return this.lang.generate(TextTools.pick(known));
   }
 
@@ -1064,6 +1164,8 @@ A useful next move is to turn it into one small action.`;
     const goals = this.memory.data.goals || [];
     const facts = this.memory.data.facts || [];
     const research = this.memory.data.research || [];
+
+    if(Math.random() < 0.2) return "";
 
     if(research.length && Math.random() < 0.45){
       const r = TextTools.pick(research);
@@ -1088,7 +1190,8 @@ ${r.summary}`;
   updateMood(input){
     const clean = TextTools.clean(input);
 
-    if(clean.includes("research") || clean.includes("source")) this.memory.data.mood = "researching";
+    if(this.memory.data.godMode) this.memory.data.mood = "godmode";
+    else if(clean.includes("research") || clean.includes("source")) this.memory.data.mood = "researching";
     else if(clean.includes("code") || clean.includes("build")) this.memory.data.mood = "builder";
     else if(/[0-9+\-*/=]/.test(clean)) this.memory.data.mood = "logical";
     else if(clean.includes("why") || clean.includes("how")) this.memory.data.mood = "curious";
@@ -1107,6 +1210,7 @@ Research items: ${this.memory.data.research.length}
 Tasks: ${this.memory.data.tasks.length}
 History: ${this.memory.data.history.length}
 Evolution: ${this.memory.data.evolution}
+God Mode: ${this.memory.data.godMode ? "on" : "off"}
 Mood: ${this.memory.data.mood}`;
   }
 
@@ -1173,11 +1277,6 @@ Mood: ${this.memory.data.mood}`;
   }
 }
 
-
-// =======================
-// 🔁 AUTO TRAINER
-// =======================
-
 class AutoTrainer {
   constructor(brain, data){
     this.brain = brain;
@@ -1196,7 +1295,10 @@ class AutoTrainer {
       const tokens = this.brain.lang.tokenize(sentence);
       if(tokens.length){
         const generated = this.brain.lang.generate(TextTools.pick(tokens));
-        if(generated) this.brain.lang.learn(generated);
+        if(generated){
+          this.brain.lang.learn(generated);
+          if(Math.random() < 0.3) this.brain.lang.learn(generated);
+        }
       }
 
       updateStatusDot(this.brain.memory.data.mood);
@@ -1208,11 +1310,6 @@ class AutoTrainer {
     this.running = false;
   }
 }
-
-
-// =======================
-// 📚 BASE DATASET
-// =======================
 
 const DATA = [
   "systems process input and produce output",
@@ -1244,13 +1341,9 @@ const DATA = [
   "research gives answers stronger grounding",
   "confidence should match evidence",
   "tasks turn ideas into action",
+  "god mode increases synthesis planning and reasoning",
   "a local brain becomes more personal as it learns"
 ];
-
-
-// =======================
-// UI
-// =======================
 
 const brain = new Brain();
 const trainer = new AutoTrainer(brain, DATA);
@@ -1271,17 +1364,18 @@ function updateStatusDot(mood){
     researching:"#ff7ad9",
     focused:"#ffffff",
     calm:"#8ecae6",
-    creative:"#ffb703"
+    creative:"#ffb703",
+    godmode:"#ffef5c"
   };
 
   const color = colors[mood] || "#58ff9a";
   statusDot.style.background = color;
-  statusDot.style.boxShadow = `0 0 12px ${color}`;
+  statusDot.style.boxShadow = `0 0 ${mood === "godmode" ? 28 : 12}px ${color}`;
   statusDot.title = "Mood: " + mood;
 
   if(statusText){
     statusText.textContent =
-      `Mood: ${mood} • Memory: ${brain.memory.data.facts.length} facts • Goals: ${brain.memory.data.goals.length} • Research: ${brain.memory.data.research.length} • Evo: ${brain.memory.data.evolution}`;
+      `Mood: ${mood} • Memory: ${brain.memory.data.facts.length} facts • Goals: ${brain.memory.data.goals.length} • Research: ${brain.memory.data.research.length} • Evo: ${brain.memory.data.evolution}${brain.memory.data.godMode ? " • GOD MODE" : ""}`;
   }
 }
 
