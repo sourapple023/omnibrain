@@ -1373,9 +1373,9 @@ function updateStatusDot(mood){
   statusDot.style.boxShadow = `0 0 ${mood === "godmode" ? 28 : 12}px ${color}`;
   statusDot.title = "Mood: " + mood;
 
-  if(statusText){
-    statusText.textContent =
-      `Mood: ${mood} • Memory: ${brain.memory.data.facts.length} facts • Goals: ${brain.memory.data.goals.length} • Research: ${brain.memory.data.research.length} • Evo: ${brain.memory.data.evolution}${brain.memory.data.godMode ? " • GOD MODE" : ""}`;
+  //if(statusText){
+    //statusText.textContent =
+      //`Mood: ${mood} • Memory: ${brain.memory.data.facts.length} facts • Goals: ${brain.memory.data.goals.length} • Research: ${brain.memory.data.research.length} • Evo: ${brain.memory.data.evolution}${brain.memory.data.godMode ? " • GOD MODE" : ""}`;
   }
 }
 
