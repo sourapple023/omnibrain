@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Omni X</title>
+<title>Omni Brain X</title>
 
 <style>
 * { box-sizing: border-box; }
 
 html, body {
   margin:0;
-  height:100%;
+  height:100dvh;
   overflow:hidden;
   background:#0a0f1f;
   color:#eaf0ff;
@@ -50,10 +50,6 @@ header {
   border-bottom:1px solid #26304d;
   font-size:13px;
   color:#b8c4ff;
-}
-
-#statusBar {
-  display: none;
 }
 
 #miniBrain{
@@ -130,18 +126,20 @@ header {
 #chat {
   flex:1;
   overflow-y:auto;
-  padding:14px;
-  padding-bottom:90px;
+  padding:12px;
+  padding-bottom:110px;
   -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+  scroll-padding-bottom:120px;
 }
 
 .msg {
-  max-width:92%;
-  margin:10px 0;
-  padding:12px 14px;
-  border-radius:18px;
+  max-width:94%;
+  margin:9px 0;
+  padding:11px 13px;
+  border-radius:17px;
   line-height:1.45;
-  font-size:16px;
+  font-size:15.5px;
   white-space:pre-wrap;
   overflow-wrap:anywhere;
 }
@@ -159,18 +157,19 @@ header {
 footer {
   display:flex;
   gap:8px;
-  padding:10px;
-  padding-bottom:calc(10px + env(safe-area-inset-bottom));
+  padding:8px;
+  padding-bottom:calc(8px + env(safe-area-inset-bottom));
   background:#121a33;
   border-top:1px solid #26304d;
   position:sticky;
   bottom:0;
+  z-index:10;
 }
 
 input {
   flex:1;
   min-width:0;
-  padding:14px;
+  padding:13px;
   border-radius:14px;
   border:1px solid #2b3554;
   background:#0d1426;
@@ -180,20 +179,37 @@ input {
 }
 
 button {
-  padding:14px 16px;
+  padding:13px 14px;
   border:none;
   border-radius:14px;
   background:#5c6cff;
   color:white;
   font-weight:700;
   cursor:pointer;
+  touch-action:manipulation;
+}
+
+@media (max-width:480px){
+  header {
+    font-size:15px;
+    padding:calc(10px + env(safe-area-inset-top)) 12px 10px;
+  }
+
+  .msg {
+    font-size:15px;
+    max-width:96%;
+  }
+
+  button {
+    min-width:64px;
+  }
 }
 </style>
 </head>
 
 <body>
 
-<header>OMNI 🧠 <span id="statusDot" title="mood"></span></header>
+<header>OMNI BRAIN X 🧠 <span id="statusDot" title="mood"></span></header>
 
 <div id="statusBar">
   <div id="miniBrain"><span class="brainLine"></span></div>
@@ -927,6 +943,9 @@ research title: [title] text: [paste text]
 ask research [question]
 research library
 clear research
+god mode
+god mode on
+god mode off
 memory
 mood
 goals
@@ -938,10 +957,112 @@ context
 stabilize
 export
 import [json]
+reset brain
 summarize [text]
 compare [thing] and [thing]
 todo [task]
+stats
+backup
+clear chat
+forget [word]
+daily review
+skill [name]
+use skill [name]
+skills
 Try math like: 12 * (4 + 2)`;
+    }
+
+    if(clean === "stats"){
+      const words = Object.keys(this.memory.data.words || {}).length;
+      const concepts = Object.keys(this.memory.data.concepts || {}).length;
+
+      return `Brain stats:
+Words: ${words}
+Concepts: ${concepts}
+Facts: ${this.memory.data.facts.length}
+Goals: ${this.memory.data.goals.length}
+Notes: ${this.memory.data.notes.length}
+Research: ${this.memory.data.research.length}
+Tasks: ${this.memory.data.tasks.length}
+History: ${this.memory.data.history.length}
+Evolution: ${this.memory.data.evolution}
+God Mode: ${this.memory.data.godMode ? "on" : "off"}
+Mood: ${this.memory.data.mood}`;
+    }
+
+    if(clean === "backup"){
+      this.exportMemory();
+      return "Backup created.";
+    }
+
+    if(clean === "clear chat"){
+      chat.innerHTML = "";
+      return "Chat cleared.";
+    }
+
+    if(clean.startsWith("forget ")){
+      const target = TextTools.clean(input.slice(7));
+      if(!target) return "Tell me what to forget after forget.";
+
+      this.memory.data.facts = this.memory.data.facts.filter(f => !TextTools.clean(f).includes(target));
+      this.memory.data.goals = this.memory.data.goals.filter(g => !TextTools.clean(g).includes(target));
+      this.memory.data.notes = this.memory.data.notes.filter(n => !TextTools.clean(n.text).includes(target));
+      this.memory.data.research = this.memory.data.research.filter(r =>
+        !TextTools.clean(r.text).includes(target) &&
+        !TextTools.clean(r.title).includes(target)
+      );
+
+      this.memory.save();
+      return `Forgot anything matching: ${target}`;
+    }
+
+    if(clean === "daily review"){
+      const goals = this.memory.data.goals.slice(-3);
+      const tasks = this.memory.data.tasks.filter(t => !t.done).slice(-5);
+      const notes = this.memory.data.notes.slice(-3);
+
+      return `Daily review:
+Goals:
+${goals.length ? goals.map((g,i)=>`${i+1}. ${g}`).join("\n") : "No goals yet."}
+
+Open tasks:
+${tasks.length ? tasks.map((t,i)=>`${i+1}. ${t.text}`).join("\n") : "No open tasks."}
+
+Recent notes:
+${notes.length ? notes.map((n,i)=>`${i+1}. ${n.text}`).join("\n") : "No notes yet."}
+
+Best move:
+Pick one task and finish the smallest useful version.`;
+    }
+
+    if(clean.startsWith("skill ")){
+      const skill = input.slice(6).trim();
+      if(!skill) return "Name the skill after skill.";
+
+      this.memory.data.skills[skill] ||= { level:1, uses:0, created:Date.now() };
+      this.memory.save();
+
+      return `Skill added: ${skill}`;
+    }
+
+    if(clean.startsWith("use skill ")){
+      const skill = input.slice(10).trim();
+      if(!this.memory.data.skills[skill]) return "I do not have that skill yet.";
+
+      this.memory.data.skills[skill].uses++;
+      this.memory.data.skills[skill].level = 1 + Math.floor(this.memory.data.skills[skill].uses / 5);
+      this.memory.save();
+
+      return `Skill used: ${skill}
+Level: ${this.memory.data.skills[skill].level}
+Uses: ${this.memory.data.skills[skill].uses}`;
+    }
+
+    if(clean === "skills"){
+      const skills = Object.entries(this.memory.data.skills || {});
+      return skills.length
+        ? "Skills:\n" + skills.map(([name,s],i)=>`${i+1}. ${name} | Level ${s.level} | Uses ${s.uses}`).join("\n")
+        : "No skills yet.";
     }
 
     if(clean === "god mode"){
@@ -1352,6 +1473,12 @@ const input = document.getElementById("input");
 const statusDot = document.getElementById("statusDot");
 const statusText = document.getElementById("statusText");
 
+function scrollToBottom(){
+  requestAnimationFrame(() => {
+    chat.scrollTop = chat.scrollHeight;
+  });
+}
+
 function updateStatusDot(mood){
   if(!statusDot) return;
 
@@ -1386,7 +1513,7 @@ function add(text,type){
   d.className = "msg " + type;
   d.textContent = text;
   chat.appendChild(d);
-  chat.scrollTop = chat.scrollHeight;
+  scrollToBottom();
 }
 
 function send(){
@@ -1406,10 +1533,24 @@ input.addEventListener("keydown",e=>{
   if(e.key==="Enter") send();
 });
 
+input.addEventListener("focus", () => {
+  setTimeout(scrollToBottom, 300);
+});
+
+input.addEventListener("input", scrollToBottom);
+
+if(window.visualViewport){
+  window.visualViewport.addEventListener("resize", () => {
+    setTimeout(scrollToBottom, 120);
+  });
+
+  window.visualViewport.addEventListener("scroll", () => {
+    setTimeout(scrollToBottom, 120);
+  });
+}
+
 trainer.start(2500);
 updateStatusDot(brain.memory.data.mood);
-
-add("Omni Brain X", "bot");
 
 </script>
 
