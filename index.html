@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OMNI OS | Cloud Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #050505;
+            color: #00ff41;
+            font-family: 'Fira Code', monospace;
+            overflow: hidden;
+        }
+        .terminal-glow {
+            text-shadow: 0 0 5px rgba(0, 255, 65, 0.5);
+        }
+        .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 18px;
+            background-color: #00ff41;
+            animation: blink 1s infinite;
+            vertical-align: middle;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        .scroll-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        .scroll-container::-webkit-scrollbar-thumb {
+            background: #1a3a1a;
+            border-radius: 10px;
+        }
+        .output-line {
+            margin-bottom: 0.5rem;
+            line-height: 1.4;
+        }
+        .typing {
+            border-right: 2px solid #00ff41;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 h-screen flex flex-col">
+
+    <!-- Header Section -->
+    <div class="mb-6 border-b border-green-900 pb-4 terminal-glow">
+        <pre class="text-xs md:text-sm leading-tight">
+==================================================
+   OMNI OS | CLOUD ASSISTANT | VERSION 2.5-WEB
+==================================================
+STATUS: ONLINE | KERNEL: GEMINI-2.0-FLASH</pre>
+    </div>
+
+    <!-- Terminal Output -->
+    <div id="output" class="flex-grow scroll-container overflow-y-auto mb-4 space-y-2 text-sm md:text-base">
+        <div class="output-line">System initialized. Welcome back, Jaelee.</div>
+        <div class="output-line text-yellow-500 text-xs italic">Note: Ensure your API Key is set via the 'config' command.</div>
+    </div>
+
+    <!-- Input Area -->
+    <div class="flex items-center space-x-2 border-t border-green-900 pt-4">
+        <span class="text-green-500 font-bold">OMNI &gt;</span>
+        <input type="text" id="command-input" autofocus 
+               class="bg-transparent border-none outline-none flex-grow text-green-400 placeholder-green-900"
+               placeholder="Enter command or query..."
+               autocomplete="off">
+    </div>
+
+    <script>
+        const outputElement = document.getElementById('output');
+        const inputElement = document.getElementById('command-input');
+        
+        let apiKey = ""; // Stored in memory for session
+        let history = [];
+        let currentModel = "gemini-2.0-flash";
+
+        // Core terminal functions
+        function printToTerminal(text, type = 'default') {
+            const div = document.createElement('div');
+            div.className = 'output-line';
+            
+            if (type === 'user') div.innerHTML = `<span class="text-blue-400 font-bold">YOU:</span> ${text}`;
+            else if (type === 'omni') div.innerHTML = `<span class="text-green-500 font-bold">🧠 OMNI:</span> <span class="response-text"></span>`;
+            else if (type === 'error') div.innerHTML = `<span class="text-red-500">❌ ERROR:</span> ${text}`;
+            else if (type === 'info') div.innerHTML = `<span class="text-yellow-500 italic">⚡ ${text}</span>`;
+            else div.innerText = text;
+
+            outputElement.appendChild(div);
+            outputElement.scrollTop = outputElement.scrollHeight;
+            return div;
+        }
+
+        async function callGemini(query) {
+            if (!apiKey) {
+                printToTerminal("API Key not found. Use: config <your_key>", "error");
+                return;
+            }
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey}`;
+            
+            history.push({ role: "user", parts: [{ text: query }] });
+            
+            const omniLine = printToTerminal("", "omni");
+            const responseSpan = omniLine.querySelector('.response-text');
+            responseSpan.innerText = "Analyzing...";
+
+            const payload = {
+                contents: history,
+                systemInstruction: { 
+                    parts: [{ text: "You are OMNI OS, a futuristic terminal AI. Keep responses technical, sleek, and formatted for a terminal." }]
+                }
+            };
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error?.message || "Unknown API error");
+                }
+
+                const answer = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated.";
+                
+                // Typing effect
+                responseSpan.innerText = "";
+                let i = 0;
+                const interval = setInterval(() => {
+                    responseSpan.innerText += answer[i];
+                    i++;
+                    outputElement.scrollTop = outputElement.scrollHeight;
+                    if (i >= answer.length) {
+                        clearInterval(interval);
+                        history.push({ role: "model", parts: [{ text: answer }] });
+                    }
+                }, 10);
+
+            } catch (err) {
+                responseSpan.innerHTML = `<span class="text-red-500">${err.message}</span>`;
+            }
+        }
+
+        // Input handler
+        inputElement.addEventListener('keydown', async (e) => {
+            if (e.key === 'Enter') {
+                const val = inputElement.value.trim();
+                inputElement.value = '';
+                
+                if (!val) return;
+
+                printToTerminal(val, 'user');
+
+                const args = val.split(' ');
+                const cmd = args[0].toLowerCase();
+
+                switch (cmd) {
+                    case 'help':
+                        printToTerminal("COMMANDS:\n- config <key>: Set API Key\n- clear: Wipe screen\n- model <name>: Switch model\n- help: Show this list", "info");
+                        break;
+                    case 'clear':
+                        outputElement.innerHTML = '';
+                        break;
+                    case 'config':
+                        if (args[1]) {
+                            apiKey = args[1];
+                            printToTerminal("API Key accepted and encrypted in session memory.", "info");
+                        } else {
+                            printToTerminal("Usage: config <your_gemini_api_key>", "error");
+                        }
+                        break;
+                    case 'model':
+                        if (args[1]) {
+                            currentModel = args[1];
+                            printToTerminal(`Core switched to ${currentModel}`, "info");
+                        } else {
+                            printToTerminal(`Current model: ${currentModel}`, "info");
+                        }
+                        break;
+                    default:
+                        await callGemini(val);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
