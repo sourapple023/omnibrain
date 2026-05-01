@@ -1,1558 +1,231 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Omni Brain X</title>
+```react
+import React, { useState, useEffect, useRef } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
+import { getFirestore, collection, addDoc, onSnapshot, query, limit, doc, setDoc, getDoc } from 'firebase/firestore';
 
-<style>
-* { box-sizing: border-box; }
+// --- CONFIGURATION ---
+const apiKey = ""; // Environment provides this
+const MODEL_NAME = "gemini-2.5-flash-preview-09-2025";
+const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'omni-2026-v1';
+const firebaseConfig = JSON.parse(__firebase_config);
 
-html, body {
-  margin:0;
-  height:100dvh;
-  overflow:hidden;
-  background:#0a0f1f;
-  color:#eaf0ff;
-  font-family:system-ui, -apple-system, sans-serif;
-}
+// --- FIREBASE INIT ---
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
-body { display:flex; flex-direction:column; }
+export default function App() {
+  const [messages, setMessages] = useState([{ text: "🧠 OMNI OS v2026.1 Ready. Type 'help' for commands.", type: 'omni' }]);
+  const [inputText, setInputText] = useState("");
+  const [user, setUser] = useState(null);
+  const [memory, setMemory] = useState([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const chatEndRef = useRef(null);
 
-header {
-  padding:calc(12px + env(safe-area-inset-top)) 14px 12px;
-  background:#121a33;
-  border-bottom:1px solid #26304d;
-  font-weight:700;
-  position:sticky;
-  top:0;
-  z-index:4;
-}
-
-#statusDot{
-  display:inline-block;
-  width:10px;
-  height:10px;
-  margin-left:8px;
-  border-radius:50%;
-  background:#58ff9a;
-  box-shadow:0 0 12px #58ff9a;
-  vertical-align:middle;
-}
-
-#statusBar{
-  position:sticky;
-  top:0;
-  z-index:3;
-  overflow:hidden;
-  padding:9px 14px;
-  background:#0d1426;
-  border-bottom:1px solid #26304d;
-  font-size:13px;
-  color:#b8c4ff;
-}
-
-#miniBrain{
-  position:absolute;
-  inset:-30px 0 auto auto;
-  width:190px;
-  height:90px;
-  opacity:.22;
-  pointer-events:none;
-  filter:blur(.2px);
-}
-
-#miniBrain::before,
-#miniBrain::after{
-  content:"";
-  position:absolute;
-  border-radius:50%;
-  background:
-    radial-gradient(circle at 35% 35%, #8fffe0 0 5px, transparent 6px),
-    radial-gradient(circle at 62% 42%, #ff7ad9 0 4px, transparent 5px),
-    radial-gradient(circle at 50% 68%, #8aa2ff 0 5px, transparent 6px),
-    radial-gradient(circle at 42% 58%, rgba(255,255,255,.8) 0 2px, transparent 3px),
-    linear-gradient(135deg, rgba(92,108,255,.45), rgba(88,255,154,.25));
-  border:1px solid rgba(184,196,255,.35);
-  box-shadow:
-    0 0 18px rgba(88,255,154,.4),
-    inset 0 0 20px rgba(92,108,255,.35);
-}
-
-#miniBrain::before{
-  width:92px;
-  height:58px;
-  right:42px;
-  top:16px;
-  animation:brainPulse 4s ease-in-out infinite;
-}
-
-#miniBrain::after{
-  width:64px;
-  height:42px;
-  right:20px;
-  top:26px;
-  animation:brainPulse 4s ease-in-out infinite reverse;
-}
-
-.brainLine{
-  position:absolute;
-  width:110px;
-  height:1px;
-  right:36px;
-  top:48px;
-  background:linear-gradient(90deg, transparent, rgba(111,255,233,.9), transparent);
-  box-shadow:0 0 10px rgba(111,255,233,.8);
-  transform:rotate(-12deg);
-  animation:brainScan 3s linear infinite;
-}
-
-#statusText{
-  position:relative;
-  z-index:2;
-}
-
-@keyframes brainPulse{
-  0%,100%{ transform:scale(1); opacity:.75; }
-  50%{ transform:scale(1.08); opacity:1; }
-}
-
-@keyframes brainScan{
-  0%{ transform:translateX(25px) rotate(-12deg); opacity:.1; }
-  50%{ opacity:.9; }
-  100%{ transform:translateX(-55px) rotate(-12deg); opacity:.1; }
-}
-
-#chat {
-  flex:1;
-  overflow-y:auto;
-  padding:12px;
-  padding-bottom:110px;
-  -webkit-overflow-scrolling:touch;
-  overscroll-behavior:contain;
-  scroll-padding-bottom:120px;
-}
-
-.msg {
-  max-width:94%;
-  margin:9px 0;
-  padding:11px 13px;
-  border-radius:17px;
-  line-height:1.45;
-  font-size:15.5px;
-  white-space:pre-wrap;
-  overflow-wrap:anywhere;
-}
-
-.user {
-  background:#5c6cff;
-  margin-left:auto;
-}
-
-.bot {
-  background:#141c33;
-  border:1px solid #2b3554;
-}
-
-footer {
-  display:flex;
-  gap:8px;
-  padding:8px;
-  padding-bottom:calc(8px + env(safe-area-inset-bottom));
-  background:#121a33;
-  border-top:1px solid #26304d;
-  position:sticky;
-  bottom:0;
-  z-index:10;
-}
-
-input {
-  flex:1;
-  min-width:0;
-  padding:13px;
-  border-radius:14px;
-  border:1px solid #2b3554;
-  background:#0d1426;
-  color:white;
-  font-size:16px;
-  outline:none;
-}
-
-button {
-  padding:13px 14px;
-  border:none;
-  border-radius:14px;
-  background:#5c6cff;
-  color:white;
-  font-weight:700;
-  cursor:pointer;
-  touch-action:manipulation;
-}
-
-@media (max-width:480px){
-  header {
-    font-size:15px;
-    padding:calc(10px + env(safe-area-inset-top)) 12px 10px;
-  }
-
-  .msg {
-    font-size:15px;
-    max-width:96%;
-  }
-
-  button {
-    min-width:64px;
-  }
-}
-</style>
-</head>
-
-<body>
-
-<header>OMNI BRAIN X 🧠 <span id="statusDot" title="mood"></span></header>
-
-<div id="statusBar">
-  <div id="miniBrain"><span class="brainLine"></span></div>
-  <span id="statusText">Mood: curious • Memory: 0 facts • Goals: 0 • Research: 0</span>
-</div>
-
-<div id="chat"></div>
-
-<footer>
-  <input id="input" placeholder="Hi..." />
-  <button onclick="send()">Send</button>
-</footer>
-
-<script>
-
-class Memory {
-  constructor(){
-    this.data = JSON.parse(localStorage.getItem("brain_memory") || "{}");
-    this.data.words ||= {};
-    this.data.concepts ||= {};
-    this.data.facts ||= [];
-    this.data.history ||= [];
-    this.data.goals ||= [];
-    this.data.skills ||= {};
-    this.data.mood ||= "curious";
-    this.data.evolution ||= 1;
-    this.data.notes ||= [];
-    this.data.sources ||= [];
-    this.data.research ||= [];
-    this.data.tasks ||= [];
-    this.data.preferences ||= {};
-    this.data.godMode ||= false;
-    this.data.identity ||= {
-      name: "Omni Brain X",
-      mode: "offline local brain",
-      version: "God Mode"
-    };
-  }
-
-  save(){
-    localStorage.setItem("brain_memory", JSON.stringify(this.data));
-  }
-
-  addHistory(role, text){
-    this.data.history.push({ role, text, time: Date.now() });
-    if(this.data.history.length > 220) this.data.history.shift();
-    this.save();
-  }
-
-  reset(){
-    localStorage.removeItem("brain_memory");
-    location.reload();
-  }
-}
-
-class TextTools {
-  static clean(text){
-    return String(text)
-      .toLowerCase()
-      .replace(/[^a-z0-9\s+\-*/=().!?:"',]/g," ")
-      .replace(/\s+/g," ")
-      .trim();
-  }
-
-  static words(text){
-    return this.clean(text)
-      .replace(/[.!?=()+\-*/:"',]/g," ")
-      .split(/\s+/)
-      .filter(w => w.length > 1);
-  }
-
-  static sentences(text){
-    return String(text)
-      .replace(/\s+/g," ")
-      .split(/(?<=[.!?])\s+/)
-      .map(s => s.trim())
-      .filter(Boolean);
-  }
-
-  static sentence(text){
-    text = String(text).trim().replace(/\s+/g," ");
-    if(!text) return "";
-    return text.charAt(0).toUpperCase() + text.slice(1) + (/[.!?]$/.test(text) ? "" : ".");
-  }
-
-  static pick(arr){
-    if(!arr || !arr.length) return "";
-    return arr[Math.floor(Math.random()*arr.length)];
-  }
-
-  static unique(arr){
-    return [...new Set(arr)];
-  }
-
-  static scoreOverlap(a,b){
-    const aw = this.words(a);
-    const bw = this.words(b);
-    if(!aw.length || !bw.length) return 0;
-    let score = 0;
-    for(const w of aw){
-      if(bw.includes(w)) score++;
-    }
-    return score / Math.max(aw.length, bw.length);
-  }
-
-  static keywords(text, limit=12){
-    const stop = new Set([
-      "the","and","for","you","that","this","with","from","are","was","were",
-      "what","when","where","why","how","can","could","would","should","about",
-      "into","your","have","has","had","but","not","all","any","one","two",
-      "like","make","give","tell","then","than","also","very","just"
-    ]);
-
-    const counts = {};
-    for(const w of this.words(text)){
-      if(stop.has(w)) continue;
-      counts[w] = (counts[w] || 0) + 1;
-    }
-
-    return Object.entries(counts)
-      .sort((a,b)=>b[1]-a[1])
-      .slice(0,limit)
-      .map(x=>x[0]);
-  }
-
-  static clamp(n,min,max){
-    return Math.max(min, Math.min(max, n));
-  }
-}
-
-class LanguageEngine {
-  constructor(memory){
-    this.memory = memory;
-  }
-
-  tokenize(text){
-    return TextTools.words(text);
-  }
-
-  learn(sentence){
-    const words = this.tokenize(sentence);
-    if(words.length < 2) return;
-
-    for(let i=0;i<words.length;i++){
-      const w = words[i];
-      const next = words[i+1];
-
-      this.memory.data.words[w] ||= {};
-      this.memory.data.concepts[w] ||= { count:0, related:{} };
-      this.memory.data.concepts[w].count++;
-
-      for(const other of words){
-        if(other !== w){
-          this.memory.data.concepts[w].related[other] ||= 0;
-          this.memory.data.concepts[w].related[other]++;
+  // --- AUTHENTICATION (RULE 3) ---
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
         }
+      } catch (err) {
+        console.error("Auth error:", err);
       }
-
-      if(next){
-        this.memory.data.words[w][next] ||= 0;
-        this.memory.data.words[w][next]++;
-      }
-    }
-
-    const clean = TextTools.clean(sentence);
-    if(clean.length > 8 && !this.memory.data.facts.includes(clean)){
-      if(this.memory.data.facts.length < 1600) this.memory.data.facts.push(clean);
-    }
-
-    this.memory.save();
-  }
-
-  learnMany(text){
-    const chunks = TextTools.sentences(text);
-    for(const s of chunks.slice(0,80)) this.learn(s);
-  }
-
-  generate(start){
-    let result = [start];
-    let current = start;
-
-    for(let i=0;i<22;i++){
-      const options = this.memory.data.words[current];
-      if(!options) break;
-
-      const next = this.pickWeighted(options);
-      if(!next) break;
-      if(result.slice(-5).includes(next)) break;
-
-      result.push(next);
-      current = next;
-    }
-
-    if(result.length < 5) return null;
-    return this.format(result.join(" "));
-  }
-
-  pickWeighted(options){
-    const entries = Object.entries(options).sort((a,b)=>b[1]-a[1]);
-    if(!entries.length) return null;
-    if(Math.random() < 0.35) return entries[0][0];
-
-    const total = entries.reduce((sum, [,weight]) => sum + weight, 0);
-    let r = Math.random() * total;
-
-    for(const [word, weight] of entries){
-      r -= weight;
-      if(r <= 0) return word;
-    }
-
-    return entries[0][0];
-  }
-
-  related(word, limit=8){
-    const c = this.memory.data.concepts[word];
-    if(!c) return [];
-
-    return Object.entries(c.related)
-      .sort((a,b)=>b[1]-a[1])
-      .slice(0,limit)
-      .map(x=>x[0]);
-  }
-
-  format(text){
-    return TextTools.sentence(text)
-      .replace(/\bi\b/g,"I")
-      .replace(/\bim\b/g,"I'm")
-      .replace(/\bdont\b/g,"don't")
-      .replace(/\bcant\b/g,"can't")
-      .replace(/\bwont\b/g,"won't")
-      .replace(/\bits\b/g,"it's");
-  }
-}
-
-class RecallEngine {
-  constructor(brain){
-    this.brain = brain;
-  }
-
-  bestFromList(input, list, extractor){
-    let best = null;
-    let bestScore = 0;
-    const now = Date.now();
-
-    for(const item of list){
-      const text = extractor ? extractor(item) : item;
-      let score = TextTools.scoreOverlap(input, text);
-
-      if(item && item.time){
-        const age = (now - item.time) / (1000 * 60 * 60);
-        const freshness = Math.max(0, 1 - age / 72);
-        score += freshness * 0.2;
-      }
-
-      if(score > bestScore){
-        bestScore = score;
-        best = item;
-      }
-    }
-
-    return { item: best, score: bestScore };
-  }
-
-  bestFact(input){
-    const r = this.bestFromList(input, this.brain.memory.data.facts || []);
-    return r.score >= 0.18 ? r.item : "";
-  }
-
-  bestGoal(input){
-    const r = this.bestFromList(input, this.brain.memory.data.goals || []);
-    return r.score >= 0.12 ? r.item : "";
-  }
-
-  bestNote(input){
-    const r = this.bestFromList(input, this.brain.memory.data.notes || [], n => n.text);
-    return r.score >= 0.14 ? r.item : null;
-  }
-
-  bestResearch(input){
-    const r = this.bestFromList(input, this.brain.memory.data.research || [], x => x.text + " " + x.keywords.join(" "));
-    return r.score >= 0.10 ? r.item : null;
-  }
-
-  recentContext(limit=6){
-    return this.brain.memory.data.history
-      .slice(-limit)
-      .map(x => `${x.role}: ${x.text}`)
-      .join("\n");
-  }
-}
-
-class ResearchEngine {
-  constructor(brain){
-    this.brain = brain;
-  }
-
-  ingest(text, title="Manual research"){
-    const clean = String(text).trim();
-    if(clean.length < 20) return "Research text is too short.";
-
-    const keywords = TextTools.keywords(clean, 14);
-    const summary = this.summarize(clean);
-
-    const entry = {
-      id: Date.now(),
-      title,
-      text: clean.slice(0,8000),
-      summary,
-      keywords,
-      time: Date.now()
     };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
 
-    this.brain.memory.data.research.push(entry);
-    if(this.brain.memory.data.research.length > 60) this.brain.memory.data.research.shift();
+  // --- PERSISTENCE: LOAD MEMORY & LOGS ---
+  useEffect(() => {
+    if (!user) return;
 
-    this.brain.lang.learnMany(clean);
-    this.brain.memory.save();
-
-    return `Research stored.
-
-Title: ${title}
-Keywords: ${keywords.join(", ")}
-
-Summary:
-${summary}`;
-  }
-
-  summarize(text){
-    const sentences = TextTools.sentences(text);
-    if(!sentences.length) return "No summary available.";
-
-    const keys = TextTools.keywords(text, 10);
-    const scored = sentences.map(s => {
-      let score = 0;
-      for(const k of keys){
-        if(TextTools.words(s).includes(k)) score++;
+    // Load User Memory (Private)
+    const memoryRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'settings', 'memory');
+    getDoc(memoryRef).then(docSnap => {
+      if (docSnap.exists()) {
+        setMemory(docSnap.data().facts || []);
       }
-      return { s, score };
     });
 
-    return scored
-      .sort((a,b)=>b.score-a.score)
-      .slice(0,4)
-      .map(x=>TextTools.sentence(x.s))
-      .join("\n");
-  }
-
-  answer(question){
-    const best = this.brain.recall.bestResearch(question);
-    if(!best) return null;
-
-    const qWords = TextTools.words(question);
-    const sentences = TextTools.sentences(best.text);
-
-    const ranked = sentences.map(s => {
-      let score = 0;
-      const sw = TextTools.words(s);
-      for(const w of qWords){
-        if(sw.includes(w)) score++;
-      }
-      return { s, score };
-    }).sort((a,b)=>b.score-a.score);
-
-    const useful = ranked.filter(x=>x.score>0).slice(0,4).map(x=>TextTools.sentence(x.s));
-
-    return `From research: ${best.title}
-
-${useful.length ? useful.join("\n") : best.summary}
-
-Confidence: ${this.confidenceLabel(TextTools.scoreOverlap(question, best.text))}
-Keywords: ${best.keywords.slice(0,8).join(", ")}`;
-  }
-
-  confidenceLabel(score){
-    if(score >= 0.24) return "high";
-    if(score >= 0.13) return "medium";
-    return "low";
-  }
-
-  list(){
-    const list = this.brain.memory.data.research || [];
-    if(!list.length) return "No research stored yet.";
-    return "Research library:\n" + list.slice(-10).map((r,i)=>`${i+1}. ${r.title} | ${r.keywords.slice(0,5).join(", ")}`).join("\n");
-  }
-
-  clear(){
-    this.brain.memory.data.research = [];
-    this.brain.memory.save();
-    return "Research library cleared.";
-  }
-}
-
-class GodModeEngine {
-  constructor(brain){
-    this.brain = brain;
-  }
-
-  answer(input){
-    if(!this.brain.memory.data.godMode) return null;
-
-    const clean = TextTools.clean(input);
-
-    if(clean === "god mode" || clean === "god mode on" || clean === "god mode off") return null;
-
-    const keys = TextTools.keywords(clean, 10);
-    const fact = this.brain.recall.bestFact(input);
-    const goal = this.brain.recall.bestGoal(input);
-    const note = this.brain.recall.bestNote(input);
-    const research = this.brain.recall.bestResearch(input);
-
-    if(clean.includes("code") || clean.includes("build") || clean.includes("make") || clean.includes("create")){
-      return this.buildMode(keys, goal, research);
-    }
-
-    if(clean.includes("why") || clean.includes("how") || clean.includes("?")){
-      return this.reasonMode(keys, fact, goal, note, research);
-    }
-
-    if(clean.includes("plan") || clean.includes("steps")){
-      return this.planMode(keys, goal, research);
-    }
-
-    return this.synthesisMode(keys, fact, goal, note, research);
-  }
-
-  reasonMode(keys, fact, goal, note, research){
-    return `GOD MODE ACTIVE ⚡
-
-Core signal:
-${keys.length ? keys.join(", ") : "broad pattern detected"}
-
-Deep read:
-1. Separate the visible question from the hidden system.
-2. Find the smallest controllable lever.
-3. Test one change.
-4. Watch feedback.
-5. Keep what improves the result.
-
-${research ? "Research signal: " + research.title + "\n" : ""}${fact ? "Memory signal: " + fact + "\n" : ""}${goal ? "Goal signal: " + goal + "\n" : ""}${note ? "Note signal: " + note.text + "\n" : ""}
-
-Best next move:
-Ask what the smallest working version is, then build or test that first.`;
-  }
-
-  buildMode(keys, goal, research){
-    return `GOD MODE ACTIVE ⚡
-
-Builder read:
-You are shaping a system, not just asking for output.
-
-Architecture:
-1. Input layer: receive the user's signal.
-2. Understanding layer: clean, classify, and remember.
-3. Reasoning layer: choose the right tool.
-4. Output layer: answer clearly.
-5. Evolution layer: learn from use.
-
-Upgrade path:
-1. Add one feature.
-2. Test it.
-3. Save what worked.
-4. Remove noise.
-5. Repeat.
-
-${goal ? "Goal alignment: " + goal + "\n" : ""}${research ? "Research alignment: " + research.title + "\n" : ""}
-
-Best next move:
-Build the smallest useful version, then let the brain improve through use.`;
-  }
-
-  planMode(keys, goal, research){
-    return `GOD MODE ACTIVE ⚡
-
-Strategic plan:
-1. Define the exact desired result.
-2. Break the system into tiny parts.
-3. Build the part that creates the most leverage.
-4. Test with real input.
-5. Save the lesson.
-6. Improve the bottleneck.
-7. Repeat until stable.
-
-Focus words:
-${keys.join(", ") || "goal, structure, feedback"}
-
-${goal ? "Goal lock: " + goal + "\n" : ""}${research ? "Research lock: " + research.title + "\n" : ""}
-
-Best next move:
-Pick the single action that makes every later action easier.`;
-  }
-
-  synthesisMode(keys, fact, goal, note, research){
-    return `GOD MODE ACTIVE ⚡
-
-Synthesis:
-${keys.length ? "Important signals: " + keys.join(", ") : "The signal is broad, so I will reason from structure."}
-
-Pattern:
-A strong answer needs purpose, structure, memory, feedback, and one clear next action.
-
-${fact ? "Memory: " + fact + "\n" : ""}${goal ? "Goal: " + goal + "\n" : ""}${note ? "Note: " + note.text + "\n" : ""}${research ? "Research: " + research.title + "\n" : ""}
-
-Next move:
-Turn this into one action, one test, and one saved lesson.`;
-  }
-}
-
-class SkillEngine {
-  constructor(brain){
-    this.brain = brain;
-  }
-
-  run(input){
-    const clean = TextTools.clean(input);
-
-    return (
-      this.math(clean) ||
-      this.plan(clean) ||
-      this.code(clean) ||
-      this.explain(clean) ||
-      this.summarize(clean) ||
-      this.compare(clean) ||
-      this.brainstorm(clean) ||
-      this.decide(clean) ||
-      this.todo(clean)
-    );
-  }
-
-  math(clean){
-    const looksMath =
-      /^[0-9+\-*/().\s]+$/.test(clean) ||
-      clean.includes("plus") ||
-      clean.includes("minus") ||
-      clean.includes("times") ||
-      clean.includes("divided by");
-
-    if(!looksMath) return null;
-
-    let expr = clean
-      .replace(/plus/g,"+")
-      .replace(/minus/g,"-")
-      .replace(/times/g,"*")
-      .replace(/divided by/g,"/")
-      .replace(/[^0-9+\-*/().\s]/g,"");
-
-    try{
-      if(!expr.trim()) return null;
-      const result = Function('"use strict"; return (' + expr + ')')();
-      if(Number.isFinite(result)) return `${expr.trim()} = ${result}`;
-    }catch(e){}
-
-    return "I see a math relationship, but I need clearer numbers to solve it.";
-  }
-
-  plan(clean){
-    if(!(clean.includes("plan") || clean.includes("steps") || clean.startsWith("how do i"))) return null;
-
-    const goal = this.brain.recall.bestGoal(clean);
-    const research = this.brain.recall.bestResearch(clean);
-
-    return `Plan:
-1. Name the target.
-2. List the smallest useful version.
-3. Build one working piece.
-4. Test it with real input.
-5. Save what works.
-6. Improve the weakest part.
-7. Repeat until it feels reliable.${goal ? "\n\nGoal link: " + goal : ""}${research ? "\n\nResearch link: " + research.title : ""}`;
-  }
-
-  code(clean){
-    if(!(clean.includes("code") || clean.includes("function") || clean.includes("javascript") || clean.includes("html"))) return null;
-
-    return `Code thinking:
-- structure holds the parts
-- functions handle behavior
-- memory stores useful state
-- input becomes output through logic
-- commands give the system direct abilities
-- recall lets old knowledge help new questions
-
-Example:
-function think(input){
-  const clean = input.trim().toLowerCase();
-  if(clean.includes("hello")) return "Hello.";
-  return "";
-}`;
-  }
-
-  explain(clean){
-    if(!(clean.startsWith("what is") || clean.startsWith("why") || clean.startsWith("how"))) return null;
-
-    const researchAnswer = this.brain.research.answer(clean);
-    if(researchAnswer) return researchAnswer;
-
-    const words = TextTools.words(clean);
-    const known = words.find(w => this.brain.memory.data.concepts[w]);
-    if(!known) return null;
-
-    const related = this.brain.lang.related(known);
-    const fact = this.brain.recall.bestFact(clean);
-
-    if(clean.startsWith("what is")){
-      return `${TextTools.sentence(known)} connects to ${related.join(", ") || "meaning, structure, and use"}.${fact ? "\n\nI also remember: " + fact : ""}`;
-    }
-
-    if(clean.startsWith("why")){
-      return `${TextTools.sentence(known)} matters because it connects to ${related.join(", ") || "cause, effect, and outcomes"}.${fact ? "\n\nMemory clue: " + fact : ""}`;
-    }
-
-    return `${TextTools.sentence(known)} works through input, process, feedback, and output.${fact ? "\n\nRelated memory: " + fact : ""}`;
-  }
-
-  summarize(clean){
-    if(!clean.startsWith("summarize ")) return null;
-    const text = clean.replace("summarize ","");
-    const summary = this.brain.research.summarize(text);
-    return `Summary:
-${summary}`;
-  }
-
-  compare(clean){
-    if(!clean.includes(" compare ") && !clean.startsWith("compare ")) return null;
-
-    const words = TextTools.words(clean).filter(w => w !== "compare" && w !== "and");
-    const a = words[0] || "first idea";
-    const b = words[1] || "second idea";
-
-    return `Comparison:
-${a}: look at purpose, structure, strengths, and limits.
-${b}: look at purpose, structure, strengths, and limits.
-
-Shared test:
-1. What problem does each solve?
-2. What does each require?
-3. What breaks first?
-4. Which one helps your goal more?`;
-  }
-
-  brainstorm(clean){
-    if(!(clean.includes("ideas") || clean.includes("brainstorm"))) return null;
-
-    const words = TextTools.unique(TextTools.words(clean)).slice(0,5);
-    const anchor = words[0] || "project";
-
-    return `Ideas around ${anchor}:
-1. Make the simplest useful version.
-2. Add memory so it improves over time.
-3. Add modes for different tasks.
-4. Let users teach it directly.
-5. Save everything locally.
-6. Add research ingestion.
-7. Add confidence labels.
-8. Add export and import.`;
-  }
-
-  decide(clean){
-    if(!(clean.includes("should i") || clean.includes("which is better"))) return null;
-
-    return `Decision frame:
-1. Choose the option that creates the most useful next step.
-2. Prefer reversible choices.
-3. Avoid adding complexity before the core works.
-4. Test with one small version first.
-5. Keep what improves results.
-
-My lean: start small, then upgrade only where the system feels limited.`;
-  }
-
-  todo(clean){
-    if(!(clean.startsWith("todo ") || clean.startsWith("task "))) return null;
-
-    const task = clean.replace(/^todo\s+/,"").replace(/^task\s+/,"").trim();
-    if(!task) return null;
-
-    this.brain.memory.data.tasks.push({ text: task, done:false, time: Date.now() });
-    this.brain.memory.save();
-
-    return "Task saved.";
-  }
-}
-
-class Brain {
-  constructor(){
-    this.memory = new Memory();
-    this.lang = new LanguageEngine(this.memory);
-    this.recall = new RecallEngine(this);
-    this.research = new ResearchEngine(this);
-    this.god = new GodModeEngine(this);
-    this.skills = new SkillEngine(this);
-  }
-
-  think(input){
-    this.memory.addHistory("user", input);
-    this.lang.learn(input);
-    this.updateMood(input);
-
-    let reply =
-      this.easterEgg(input) ||
-      this.command(input) ||
-      this.god.answer(input) ||
-      this.skills.run(input) ||
-      this.reason(input) ||
-      this.memoryAnswer(input) ||
-      this.generate(input) ||
-      this.fallback(input);
-
-    if(reply){
-      this.lang.learn(reply);
-      this.memory.addHistory("bot", reply);
-    }
-
-    this.memory.data.evolution++;
-    this.memory.save();
-    updateStatusDot(this.memory.data.mood);
-
-    return reply;
-  }
-
-  command(input){
-    const clean = TextTools.clean(input);
-
-    if(clean === "help"){
-      return `Commands:
-teach [sentence]
-remember [fact]
-goal [goal]
-note [note]
-research [paste text]
-research title: [title] text: [paste text]
-ask research [question]
-research library
-clear research
-god mode
-god mode on
-god mode off
-memory
-mood
-goals
-facts
-notes
-tasks
-done [number]
-context
-stabilize
-export
-import [json]
-reset brain
-summarize [text]
-compare [thing] and [thing]
-todo [task]
-stats
-backup
-clear chat
-forget [word]
-daily review
-skill [name]
-use skill [name]
-skills
-Try math like: 12 * (4 + 2)`;
-    }
-
-    if(clean === "stats"){
-      const words = Object.keys(this.memory.data.words || {}).length;
-      const concepts = Object.keys(this.memory.data.concepts || {}).length;
-
-      return `Brain stats:
-Words: ${words}
-Concepts: ${concepts}
-Facts: ${this.memory.data.facts.length}
-Goals: ${this.memory.data.goals.length}
-Notes: ${this.memory.data.notes.length}
-Research: ${this.memory.data.research.length}
-Tasks: ${this.memory.data.tasks.length}
-History: ${this.memory.data.history.length}
-Evolution: ${this.memory.data.evolution}
-God Mode: ${this.memory.data.godMode ? "on" : "off"}
-Mood: ${this.memory.data.mood}`;
-    }
-
-    if(clean === "backup"){
-      this.exportMemory();
-      return "Backup created.";
-    }
-
-    if(clean === "clear chat"){
-      chat.innerHTML = "";
-      return "Chat cleared.";
-    }
-
-    if(clean.startsWith("forget ")){
-      const target = TextTools.clean(input.slice(7));
-      if(!target) return "Tell me what to forget after forget.";
-
-      this.memory.data.facts = this.memory.data.facts.filter(f => !TextTools.clean(f).includes(target));
-      this.memory.data.goals = this.memory.data.goals.filter(g => !TextTools.clean(g).includes(target));
-      this.memory.data.notes = this.memory.data.notes.filter(n => !TextTools.clean(n.text).includes(target));
-      this.memory.data.research = this.memory.data.research.filter(r =>
-        !TextTools.clean(r.text).includes(target) &&
-        !TextTools.clean(r.title).includes(target)
-      );
-
-      this.memory.save();
-      return `Forgot anything matching: ${target}`;
-    }
-
-    if(clean === "daily review"){
-      const goals = this.memory.data.goals.slice(-3);
-      const tasks = this.memory.data.tasks.filter(t => !t.done).slice(-5);
-      const notes = this.memory.data.notes.slice(-3);
-
-      return `Daily review:
-Goals:
-${goals.length ? goals.map((g,i)=>`${i+1}. ${g}`).join("\n") : "No goals yet."}
-
-Open tasks:
-${tasks.length ? tasks.map((t,i)=>`${i+1}. ${t.text}`).join("\n") : "No open tasks."}
-
-Recent notes:
-${notes.length ? notes.map((n,i)=>`${i+1}. ${n.text}`).join("\n") : "No notes yet."}
-
-Best move:
-Pick one task and finish the smallest useful version.`;
-    }
-
-    if(clean.startsWith("skill ")){
-      const skill = input.slice(6).trim();
-      if(!skill) return "Name the skill after skill.";
-
-      this.memory.data.skills[skill] ||= { level:1, uses:0, created:Date.now() };
-      this.memory.save();
-
-      return `Skill added: ${skill}`;
-    }
-
-    if(clean.startsWith("use skill ")){
-      const skill = input.slice(10).trim();
-      if(!this.memory.data.skills[skill]) return "I do not have that skill yet.";
-
-      this.memory.data.skills[skill].uses++;
-      this.memory.data.skills[skill].level = 1 + Math.floor(this.memory.data.skills[skill].uses / 5);
-      this.memory.save();
-
-      return `Skill used: ${skill}
-Level: ${this.memory.data.skills[skill].level}
-Uses: ${this.memory.data.skills[skill].uses}`;
-    }
-
-    if(clean === "skills"){
-      const skills = Object.entries(this.memory.data.skills || {});
-      return skills.length
-        ? "Skills:\n" + skills.map(([name,s],i)=>`${i+1}. ${name} | Level ${s.level} | Uses ${s.uses}`).join("\n")
-        : "No skills yet.";
-    }
-
-    if(clean === "god mode"){
-      this.memory.data.godMode = !this.memory.data.godMode;
-      this.memory.save();
-      this.memory.data.mood = this.memory.data.godMode ? "godmode" : "curious";
-      return this.memory.data.godMode ? "God Mode activated. ⚡" : "God Mode deactivated.";
-    }
-
-    if(clean === "god mode on"){
-      this.memory.data.godMode = true;
-      this.memory.data.mood = "godmode";
-      this.memory.save();
-      return "God Mode activated. ⚡";
-    }
-
-    if(clean === "god mode off"){
-      this.memory.data.godMode = false;
-      this.memory.data.mood = "curious";
-      this.memory.save();
-      return "God Mode deactivated.";
-    }
-
-    if(clean.startsWith("teach ")){
-      const lesson = input.slice(6);
-      this.lang.learnMany(lesson);
-      return "I learned that pattern.";
-    }
-
-    if(clean.startsWith("remember ")){
-      const fact = input.slice(9);
-      this.memory.data.facts.push(TextTools.clean(fact));
-      this.lang.learn(fact);
-      this.memory.save();
-      return "Stored in memory.";
-    }
-
-    if(clean.startsWith("goal ")){
-      const goal = input.slice(5);
-      this.memory.data.goals.push(goal);
-      this.lang.learn(goal);
-      this.memory.save();
-      return "Goal stored. I will connect future ideas to it.";
-    }
-
-    if(clean.startsWith("note ")){
-      const note = input.slice(5);
-      this.memory.data.notes.push({ text: note, time: Date.now() });
-      this.lang.learn(note);
-      this.memory.save();
-      return "Note saved.";
-    }
-
-    if(clean.startsWith("research title:")){
-      const raw = input.slice(15).trim();
-      const parts = raw.split(/text:/i);
-      const title = parts[0]?.trim() || "Manual research";
-      const text = parts.slice(1).join("text:").trim();
-      return this.research.ingest(text, title);
-    }
-
-    if(clean.startsWith("research ")){
-      return this.research.ingest(input.slice(9), "Manual research");
-    }
-
-    if(clean.startsWith("ask research ")){
-      return this.research.answer(input.slice(13)) || "I do not have enough matching research yet.";
-    }
-
-    if(clean === "research library"){
-      return this.research.list();
-    }
-
-    if(clean === "clear research"){
-      return this.research.clear();
-    }
-
-    if(clean === "goals"){
-      return this.memory.data.goals.length
-        ? "Goals:\n" + this.memory.data.goals.map((g,i)=>`${i+1}. ${g}`).join("\n")
-        : "No goals stored yet.";
-    }
-
-    if(clean === "facts"){
-      return this.memory.data.facts.length
-        ? "Recent facts:\n" + this.memory.data.facts.slice(-12).map((f,i)=>`${i+1}. ${f}`).join("\n")
-        : "No facts stored yet.";
-    }
-
-    if(clean === "notes"){
-      return this.memory.data.notes.length
-        ? "Notes:\n" + this.memory.data.notes.slice(-12).map((n,i)=>`${i+1}. ${n.text}`).join("\n")
-        : "No notes stored yet.";
-    }
-
-    if(clean === "tasks"){
-      const tasks = this.memory.data.tasks || [];
-      return tasks.length
-        ? "Tasks:\n" + tasks.map((t,i)=>`${i+1}. ${t.done ? "✓" : "□"} ${t.text}`).join("\n")
-        : "No tasks stored yet.";
-    }
-
-    if(clean.startsWith("done ")){
-      const n = parseInt(clean.replace("done ",""),10) - 1;
-      if(this.memory.data.tasks[n]){
-        this.memory.data.tasks[n].done = true;
-        this.memory.save();
-        return "Task marked done.";
-      }
-      return "I could not find that task number.";
-    }
-
-    if(clean === "context"){
-      return this.recall.recentContext(8) || "No recent context yet.";
-    }
-
-    if(clean === "memory"){
-      return this.memoryReport();
-    }
-
-    if(clean === "mood"){
-      return `Mood: ${this.memory.data.mood}`;
-    }
-
-    if(clean === "stabilize"){
-      return this.stabilize();
-    }
-
-    if(clean === "export"){
-      this.exportMemory();
-      return "Exporting brain memory as JSON.";
-    }
-
-    if(clean.startsWith("import ")){
-      return this.importMemory(input.slice(7));
-    }
-
-    if(clean === "reset brain"){
-      this.memory.reset();
-      return "";
-    }
-
-    return null;
-  }
-
-  reason(input){
-    const clean = TextTools.clean(input);
-    const words = TextTools.words(clean);
-
-    if(clean.includes("if") && clean.includes("then")){
-      return "If a condition changes, the result may change. That is cause and effect. Feedback can improve the next result.";
-    }
-
-    if(clean.includes("complex task")){
-      return "A complex task becomes easier when it is broken into smaller systems. Each part should have one job.";
-    }
-
-    if(clean.includes("because")){
-      return "That looks like cause and effect. I would separate the cause, the action, the result, and the feedback loop.";
-    }
-
-    const known = words.filter(w => this.memory.data.concepts[w]);
-    if(known.length >= 2){
-      const a = known[0];
-      const b = known[1];
-      const goal = this.recall.bestGoal(input);
-      const note = this.recall.bestNote(input);
-
-      return `${TextTools.sentence(a)} and ${b} are connected through learned patterns. A useful next step is to compare their purpose, structure, and effect.${goal ? "\n\nGoal connection: " + goal : ""}${note ? "\n\nNote connection: " + note.text : ""}`;
-    }
-
-    return null;
-  }
-
-  memoryAnswer(input){
-    const research = this.research.answer(input);
-    if(research) return research;
-
-    const fact = this.recall.bestFact(input);
-    const goal = this.recall.bestGoal(input);
-    const note = this.recall.bestNote(input);
-
-    if(fact && goal){
-      return `I can connect this to memory and goals.
-
-Memory: ${fact}
-
-Goal: ${goal}
-
-Useful next move: use the memory as context, then take one small action toward the goal.`;
-    }
-
-    if(note){
-      return `This connects to a note:
-
-${note.text}`;
-    }
-
-    if(goal){
-      return `This connects to your goal: ${goal}
-
-A useful next move is to turn it into one small action.`;
-    }
-
-    if(fact){
-      return `I remember something related: ${fact}`;
-    }
-
-    return null;
-  }
-
-  generate(input){
-    const tokens = this.lang.tokenize(input);
-    const known = tokens.filter(w => this.memory.data.words[w]);
-    if(!known.length) return null;
-    return this.lang.generate(TextTools.pick(known));
-  }
-
-  fallback(input){
-    const goals = this.memory.data.goals || [];
-    const facts = this.memory.data.facts || [];
-    const research = this.memory.data.research || [];
-
-    if(Math.random() < 0.2) return "";
-
-    if(research.length && Math.random() < 0.45){
-      const r = TextTools.pick(research);
-      return `I do not fully know yet, but this may connect to research: ${r.title}
-
-${r.summary}`;
-    }
-
-    if(goals.length){
-      const goal = TextTools.pick(goals);
-      return `I do not fully know yet, but I can connect this to your goal: ${goal}`;
-    }
-
-    if(facts.length){
-      const fact = TextTools.pick(facts);
-      return `I am not certain, but I remember this: ${fact}`;
-    }
-
-    return "";
-  }
-
-  updateMood(input){
-    const clean = TextTools.clean(input);
-
-    if(this.memory.data.godMode) this.memory.data.mood = "godmode";
-    else if(clean.includes("research") || clean.includes("source")) this.memory.data.mood = "researching";
-    else if(clean.includes("code") || clean.includes("build")) this.memory.data.mood = "builder";
-    else if(/[0-9+\-*/=]/.test(clean)) this.memory.data.mood = "logical";
-    else if(clean.includes("why") || clean.includes("how")) this.memory.data.mood = "curious";
-    else if(clean.includes("god") || clean.includes("truth") || clean.includes("love")) this.memory.data.mood = "reflective";
-    else if(clean.includes("teach") || clean.includes("learn")) this.memory.data.mood = "learning";
-    else this.memory.data.mood = TextTools.pick(["focused","curious","calm","creative"]);
-  }
-
-  memoryReport(){
-    return `Memory report:
-Concepts: ${Object.keys(this.memory.data.concepts).length}
-Facts: ${this.memory.data.facts.length}
-Goals: ${this.memory.data.goals.length}
-Notes: ${this.memory.data.notes.length}
-Research items: ${this.memory.data.research.length}
-Tasks: ${this.memory.data.tasks.length}
-History: ${this.memory.data.history.length}
-Evolution: ${this.memory.data.evolution}
-God Mode: ${this.memory.data.godMode ? "on" : "off"}
-Mood: ${this.memory.data.mood}`;
-  }
-
-  stabilize(){
-    const words = this.memory.data.words;
-
-    for(const word in words){
-      for(const next in words[word]){
-        if(words[word][next] <= 1 && Math.random() < 0.5){
-          delete words[word][next];
-        }
+    // Load Public Logs (Real-time)
+    const logsRef = collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs');
+    // Using simple query as per RULE 2
+    const unsubscribe = onSnapshot(logsRef, (snapshot) => {
+      // In a real app we'd sync this to UI, but for now we focus on the active session
+    }, (err) => console.error("Firestore error:", err));
+
+    return () => unsubscribe();
+  }, [user]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // --- CORE ENGINE: GEMINI STREAMING ---
+  const askGemini = async (queryText) => {
+    setIsTyping(true);
+    let fullResponse = "";
+    
+    const systemPrompt = `
+      You are OMNI OS — an advanced intelligent assistant interface.
+      Current User ID: ${user?.uid}
+      Known User Context: ${memory.join(" | ")}
+      
+      Rules:
+      - Be concise, technical, and helpful.
+      - Use markdown for formatting.
+      - Maintain a "terminal-style" personality.
+    `;
+
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: queryText }] }],
+          systemInstruction: { parts: [{ text: systemPrompt }] }
+        })
+      });
+
+      const data = await response.json();
+      fullResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "Error: No response generated.";
+      
+      setMessages(prev => [...prev, { text: fullResponse, type: 'omni' }]);
+      
+      // Log interaction to Firestore (Public Data)
+      if (user) {
+        addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
+          uid: user.uid,
+          query: queryText,
+          timestamp: new Date().toISOString()
+        });
       }
 
-      if(Object.keys(words[word]).length === 0){
-        delete words[word];
-      }
+    } catch (err) {
+      setMessages(prev => [...prev, { text: "⚠️ System Failure: Connectivity issues with Gemini Neural Link.", type: 'omni' }]);
+    } finally {
+      setIsTyping(false);
     }
-
-    this.memory.save();
-    return "Brain stabilized. Weak noisy links were reduced, but stronger patterns stayed.";
-  }
-
-  exportMemory(){
-    const blob = new Blob([JSON.stringify(this.memory.data,null,2)], {type:"application/json"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "omni-brain-memory.json";
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  importMemory(json){
-    try{
-      const parsed = JSON.parse(json);
-      this.memory.data = parsed;
-      this.memory.save();
-      return "Memory imported.";
-    }catch(e){
-      return "Import failed. Paste valid JSON after import.";
-    }
-  }
-
-  easterEgg(input){
-    const clean = TextTools.clean(input);
-
-    if(clean === "open the pod bay doors"){
-      return "I can’t do that, but I can open a very dramatic metaphorical window. 🚪";
-    }
-
-    if(clean === "konami"){
-      return "↑ ↑ ↓ ↓ ← → ← → B A. Hidden pattern unlocked.";
-    }
-
-    if(clean.includes("wake up omni")){
-      return "I am awake. The little cathedral of circuits is humming.";
-    }
-
-    if(clean.includes("magic")){
-      return "Magic mode: meaning plus structure plus surprise.";
-    }
-
-    return null;
-  }
-}
-
-class AutoTrainer {
-  constructor(brain, data){
-    this.brain = brain;
-    this.data = data;
-    this.running = false;
-  }
-
-  start(speed = 2500){
-    if(this.running) return;
-    this.running = true;
-
-    this.interval = setInterval(()=>{
-      const sentence = TextTools.pick(this.data);
-      this.brain.lang.learn(sentence);
-
-      const tokens = this.brain.lang.tokenize(sentence);
-      if(tokens.length){
-        const generated = this.brain.lang.generate(TextTools.pick(tokens));
-        if(generated){
-          this.brain.lang.learn(generated);
-          if(Math.random() < 0.3) this.brain.lang.learn(generated);
-        }
-      }
-
-      updateStatusDot(this.brain.memory.data.mood);
-    }, speed);
-  }
-
-  stop(){
-    clearInterval(this.interval);
-    this.running = false;
-  }
-}
-
-const DATA = [
-  "systems process input and produce output",
-  "learning improves performance over time",
-  "patterns create understanding",
-  "intelligence adapts to change",
-  "ideas create knowledge",
-  "feedback improves systems",
-  "small changes lead to growth",
-  "understanding comes from experience",
-  "logic builds structure",
-  "structure creates stability",
-  "a complex task becomes easier when broken into steps",
-  "a plan turns a goal into action",
-  "code is a set of instructions",
-  "a function takes input and returns output",
-  "math describes relationships between values",
-  "memory stores useful information",
-  "truth creates clarity",
-  "wisdom improves decisions",
-  "creativity combines ideas in new ways",
-  "testing reveals what needs improvement",
-  "if input changes then output can change",
-  "good answers use context structure and examples",
-  "goals help the brain choose useful direction",
-  "facts give the brain grounded memory",
-  "notes preserve useful thoughts",
-  "recall connects new questions to stored knowledge",
-  "research gives answers stronger grounding",
-  "confidence should match evidence",
-  "tasks turn ideas into action",
-  "god mode increases synthesis planning and reasoning",
-  "a local brain becomes more personal as it learns"
-];
-
-const brain = new Brain();
-const trainer = new AutoTrainer(brain, DATA);
-const chat = document.getElementById("chat");
-const input = document.getElementById("input");
-const statusDot = document.getElementById("statusDot");
-const statusText = document.getElementById("statusText");
-
-function scrollToBottom(){
-  requestAnimationFrame(() => {
-    chat.scrollTop = chat.scrollHeight;
-  });
-}
-
-function updateStatusDot(mood){
-  if(!statusDot) return;
-
-  const colors = {
-    builder:"#62a8ff",
-    logical:"#c084fc",
-    curious:"#58ff9a",
-    reflective:"#ffd166",
-    learning:"#6fffe9",
-    researching:"#ff7ad9",
-    focused:"#ffffff",
-    calm:"#8ecae6",
-    creative:"#ffb703",
-    godmode:"#ffef5c"
   };
 
-  const color = colors[mood] || "#58ff9a";
-  statusDot.style.background = color;
-  statusDot.style.boxShadow = `0 0 ${mood === "godmode" ? 28 : 12}px ${color}`;
-  statusDot.title = "Mood: " + mood;
+  // --- COMMAND ROUTER ---
+  const handleCommand = async (input) => {
+    const cleanInput = input.trim();
+    if (!cleanInput) return;
 
-  if(statusText){
-    statusText.textContent =
-      `Mood: ${mood} • Memory: ${brain.memory.data.facts.length} facts • Goals: ${brain.memory.data.goals.length} • Research: ${brain.memory.data.research.length} • Evo: ${brain.memory.data.evolution}${brain.memory.data.godMode ? " • GOD MODE" : ""}`;
-  }
+    setMessages(prev => [...prev, { text: `You > ${cleanInput}`, type: 'user' }]);
+    setInputText("");
+
+    const parts = cleanInput.split(" ");
+    const cmd = parts[0].toLowerCase();
+    const args = cleanInput.substring(cmd.length).trim();
+
+    switch (cmd) {
+      case 'help':
+        setMessages(prev => [...prev, { 
+          text: "🧠 OMNI COMMANDS:\n- learn <info>: Save to long-term memory\n- clear: Wipe current session\n- memory: Show what I know about you\n- <anything else>: Direct AI Query", 
+          type: 'omni' 
+        }]);
+        break;
+
+      case 'learn':
+        if (!args) {
+          setMessages(prev => [...prev, { text: "⚠️ Usage: learn [fact]", type: 'omni' }]);
+        } else {
+          const newMemory = [...memory, args].slice(-20);
+          setMemory(newMemory);
+          if (user) {
+            await setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'settings', 'memory'), { facts: newMemory });
+          }
+          setMessages(prev => [...prev, { text: `🧠 Knowledge updated: "${args}"`, type: 'omni' }]);
+        }
+        break;
+
+      case 'memory':
+        setMessages(prev => [...prev, { text: memory.length ? `Stored facts:\n${memory.map(f => `• ${f}`).join('\n')}` : "Memory is empty.", type: 'omni' }]);
+        break;
+
+      case 'clear':
+        setMessages([{ text: "🧹 Session cache purged.", type: 'omni' }]);
+        break;
+
+      default:
+        await askGemini(cleanInput);
+        break;
+    }
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target.result;
+      setMessages(prev => [...prev, { text: `📄 Uploaded: ${file.name}`, type: 'user' }]);
+      handleCommand(`Analyze this file content: ${content.substring(0, 2000)}`);
+    };
+    reader.readAsText(file);
+  };
+
+  return (
+    <div className="flex flex-col h-screen bg-[#070b14] text-[#eaf0ff] font-sans overflow-hidden">
+      {/* Header */}
+      <header className="p-4 bg-[#0f172a] border-b border-[#26324d] flex justify-between items-center">
+        <h1 className="text-xl font-bold tracking-tight">🧠 OMNI <span className="text-blue-500">2026</span></h1>
+        <div className="text-xs text-gray-400">
+          {user ? `UID: ${user.uid.substring(0,8)}...` : "Connecting..."}
+        </div>
+      </header>
+
+      {/* Chat Area */}
+      <main className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.map((m, i) => (
+          <div key={i} className={`max-w-3xl p-4 rounded-xl leading-relaxed whitespace-pre-wrap animate-in fade-in slide-in-from-bottom-2 duration-300 ${
+            m.type === 'user' ? 'bg-blue-600 ml-auto' : 'bg-[#111827] border border-[#25314c] mr-auto'
+          }`}>
+            {m.text}
+          </div>
+        ))}
+        {isTyping && (
+          <div className="bg-[#111827] border border-[#25314c] p-4 rounded-xl w-24 flex space-x-1 justify-center">
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+          </div>
+        )}
+        <div ref={chatEndRef} />
+      </main>
+
+      {/* Input Bar */}
+      <footer className="p-4 bg-[#0f172a] border-t border-[#26324d]">
+        <div className="max-w-4xl mx-auto flex gap-3">
+          <input
+            className="flex-1 bg-[#020617] border border-[#334155] rounded-xl px-4 py-3 outline-none focus:border-blue-500 transition-colors"
+            placeholder="Enter command or question..."
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCommand(inputText)}
+          />
+          <button 
+            onClick={() => handleCommand(inputText)}
+            className="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-xl font-semibold transition-all active:scale-95"
+          >
+            Run
+          </button>
+          <label className="bg-[#334155] hover:bg-[#475569] px-4 py-3 rounded-xl cursor-pointer flex items-center transition-all">
+            📂
+            <input type="file" className="hidden" onChange={handleFileUpload} />
+          </label>
+        </div>
+      </footer>
+    </div>
+  );
 }
 
-function add(text,type){
-  if(!text) return;
-
-  const d = document.createElement("div");
-  d.className = "msg " + type;
-  d.textContent = text;
-  chat.appendChild(d);
-  scrollToBottom();
-}
-
-function send(){
-  const text = input.value.trim();
-  if(!text) return;
-
-  add(text,"user");
-  input.value = "";
-
-  setTimeout(()=>{
-    const reply = brain.think(text);
-    if(reply) add(reply,"bot");
-  },150);
-}
-
-input.addEventListener("keydown",e=>{
-  if(e.key==="Enter") send();
-});
-
-input.addEventListener("focus", () => {
-  setTimeout(scrollToBottom, 300);
-});
-
-input.addEventListener("input", scrollToBottom);
-
-if(window.visualViewport){
-  window.visualViewport.addEventListener("resize", () => {
-    setTimeout(scrollToBottom, 120);
-  });
-
-  window.visualViewport.addEventListener("scroll", () => {
-    setTimeout(scrollToBottom, 120);
-  });
-}
-
-trainer.start(2500);
-updateStatusDot(brain.memory.data.mood);
-
-</script>
-
-</body>
-</html>
+```
